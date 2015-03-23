@@ -2,15 +2,15 @@
  * @author Josh Stuart <joshstuartx@gmail.com>.
  */
 
-var q = require('q');
 var _ = require('lodash');
+var moment = require('moment');
+var q = require('q');
 var common = require('evergram-common');
 var aws = common.aws;
 var config = require('../config');
-var print = common.print;
-var image = common.image.manager;
+var imageManager = common.image.manager;
+var printManager = common.print.manager;
 var utils = common.utils;
-var image = common.image.manager;
 
 /**
  * A consumer that handles all of the consumers
@@ -34,7 +34,7 @@ Consumer.prototype.consume = function () {
         if (!!results[0].Body && !!results[0].Body.id) {
             var id = message.Body.id;
 
-            print.manager.find({'_id': id}).then(function (printableImageSet) {
+            printManager.find({'_id': id}).then(function (printableImageSet) {
                 if (printableImageSet != null) {
 
                 } else {
@@ -56,15 +56,15 @@ Consumer.prototype.consume = function () {
     return deferred.promise;
 };
 
-Consumer.prototype.saveFiles = function (printableImageSet) {
+Consumer.prototype.saveFiles = function (user, printableImageSet) {
     var deferred = q.defer();
     var imageSets = printableImageSet.images;
     _.forEach(imageSets, function (images, service) {
         var imagesDeferred = [];
-        var filename = printableImageSet.user.instagram.username + '-' + printableImageSet.date.toDateString("yyyy-MM-dd") + '-';
+        var filename = user.instagram.username + '-' + moment(printableImageSet.date).format("YYYY-MM-DD") + '-';
 
         _.forEach(images, function (image, i) {
-            imagesDeferred.push(image.saveFromUrl(image, filename + i));
+            imagesDeferred.push(imageManager.saveFromUrl(image.src.raw, filename + i));
         });
 
         q.all(imagesDeferred).then(function () {
