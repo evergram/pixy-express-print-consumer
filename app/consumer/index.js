@@ -58,19 +58,30 @@ Consumer.prototype.consume = function () {
 
 Consumer.prototype.saveFiles = function (user, printableImageSet) {
     var deferred = q.defer();
+    var imagesDeferred = [];
     var imageSets = printableImageSet.images;
+
     _.forEach(imageSets, function (images, service) {
-        var imagesDeferred = [];
-        var filename = user.instagram.username + '-' + moment(printableImageSet.date).format("YYYY-MM-DD") + '-';
+        if (images.length > 0 && !!user[service]) {
+            var userDir = user[service].username + '/';
+            var filename = user[service].username + '-' + moment(printableImageSet.date).format("YYYY-MM-DD") + '-';
 
-        _.forEach(images, function (image, i) {
-            imagesDeferred.push(imageManager.saveFromUrl(image.src.raw, filename + i));
-        });
+            _.forEach(images, function (image, i) {
+                var imgDeferred = q.defer();
+                imagesDeferred.push(imgDeferred);
 
-        q.all(imagesDeferred).then(function () {
-            console.log('all done');
-            deferred.resolve();
-        });
+                var imgFileName = filename + i;
+                imageManager.saveFromUrl(image.src.raw, imgFileName, userDir).then(function () {
+                    console.log('Image saved', imgFileName);
+                    imgDeferred.resolve();
+                });
+            });
+        }
+    });
+
+    q.all(imagesDeferred).then(function () {
+        console.log('All deferreds have saved: ', imagesDeferred.length);
+        deferred.resolve();
     });
 
     return deferred.promise;

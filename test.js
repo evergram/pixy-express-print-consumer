@@ -2,9 +2,11 @@
  * Module dependencies.
  */
 
+var q = require('q');
+var _ = require('lodash');
 var common = require('evergram-common');
 var instagram = common.instagram;
-var User = common.models.User;
+var userManager = common.user.manager;
 var PrintableImageSet = common.models.PrintableImageSet;
 var printManager = common.print.manager;
 var consumer = require('./app/consumer');
@@ -12,13 +14,30 @@ var consumer = require('./app/consumer');
 //init db
 common.db.connect();
 
-var josh = '550fcc0ee7ad42fa1259f66f';
-var luisa = '550ce83feb09674d27237923';
+//var options = {criteria: {'instagram.username': 'mandycuz'}};
+var options = {};
 
-User.findOne({'_id': josh}, function (err, user) {
-    if (user != null) {
-        printManager.findCurrentByUser(user).then(function (imageSet) {
-            consumer.saveFiles(user, imageSet);
+userManager.findAll(options).then(function (users) {
+    var deferreds = [];
+    console.log('Found ' + users.length + ' users');
+    var numImages = 0;
+    if (!!users) {
+        _.forEach(users, function (user) {
+            var deferred = q.defer();
+            printManager.findCurrentByUser(user).then(function (imageSet) {
+                console.log(user.instagram.username + ' has ' + imageSet.images.instagram.length + ' images');
+                console.log('Saving them to disk');
+
+                consumer.saveFiles(user, imageSet).then(function () {
+                    console.log('Saved to disk');
+                    numImages += imageSet.images.instagram.length;
+                    deferred.resolve();
+                });
+            });
+            deferreds.push(deferred.promise);
         });
     }
+    q.all(deferreds).then(function () {
+        console.log('Total of ' + numImages + ' images found');
+    })
 });
