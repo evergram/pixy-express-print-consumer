@@ -11,7 +11,8 @@ var aws = common.aws;
 var config = require('../config');
 var imageManager = common.image.manager;
 var printManager = common.print.manager;
-var utils = common.utils;
+var filesUtil = common.utils.files;
+var logger = common.utils.logger;
 
 /**
  * A consumer that handles all of the consumers
@@ -116,12 +117,12 @@ Consumer.prototype.saveFilesAndZip = function (user, printableImageSet) {
     this.saveFiles(user, printableImageSet).then((function (localImages) {
         if (localImages.length > 0) {
             this.zipFiles(user, printableImageSet, localImages).then(function (savedZipFile) {
-                utils.deleteFromTempDirectory(userDir);
+                filesUtil.deleteFromTempDirectory(userDir);
 
                 deferred.resolve(savedZipFile);
             });
         } else {
-            utils.deleteFromTempDirectory(userDir);
+            filesUtil.deleteFromTempDirectory(userDir);
 
             deferred.resolve();
         }
@@ -139,7 +140,7 @@ Consumer.prototype.saveFilesAndZip = function (user, printableImageSet) {
  */
 Consumer.prototype.zipFiles = function (user, printableImageSet, localImages) {
     var filename = formatFileName(user, printableImageSet);
-    return utils.zipFiles(localImages, filename);
+    return filesUtil.zipFiles(localImages, filename);
 };
 
 /**
