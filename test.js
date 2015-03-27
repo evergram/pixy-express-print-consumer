@@ -19,25 +19,22 @@ var options = {};
 
 userManager.findAll(options).then(function (users) {
     var deferreds = [];
-    console.log('Found ' + users.length + ' users');
-    var numImages = 0;
+    console.log('Starting');
     if (!!users) {
         _.forEach(users, function (user) {
             var deferred = q.defer();
             printManager.findCurrentByUser(user).then(function (imageSet) {
-                console.log(user.instagram.username + ' has ' + imageSet.images.instagram.length + ' images');
-                console.log('Saving them to disk');
-
-                consumer.saveFiles(user, imageSet).then(function () {
-                    console.log('Saved to disk');
-                    numImages += imageSet.images.instagram.length;
-                    deferred.resolve();
-                });
+                return consumer.saveFilesAndZip(user, imageSet);
+            }).then(function (zipFileName) {
+                if (!!zipFileName) {
+                    console.log(zipFileName);
+                }
+                deferred.resolve();
             });
             deferreds.push(deferred.promise);
         });
     }
     q.all(deferreds).then(function () {
-        console.log('Total of ' + numImages + ' images found');
+        console.log('We are done');
     })
 });
