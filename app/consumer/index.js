@@ -91,7 +91,7 @@ Consumer.prototype.consume = function () {
 Consumer.prototype.saveFileToS3 = function (file, dir) {
     logger.info('Saving file ' + file + ' to S3');
 
-    var filename = dir + '/' + path.basename(file);
+    var filename = config.s3.folder + '/' + dir + '/' + path.basename(file);
     return s3.create(file, {
         bucket: s3Bucket,
         key: filename,

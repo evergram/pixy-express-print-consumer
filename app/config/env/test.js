@@ -4,7 +4,7 @@
 
 module.exports = {
     s3: {
-        folder: 'image-sets'
+        folder: 'user-images'
     },
     sqs: {
         waitTime: 20 //seconds

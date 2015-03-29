@@ -4,7 +4,7 @@
 
 module.exports = {
     s3: {
-        folder: process.env.S3_FOLDER
+        folder: process.env.S3_FOLDER || 'user-images'
     },
     sqs: {
         waitTime: process.env.SQS_WAIT_TIME || 20 //seconds

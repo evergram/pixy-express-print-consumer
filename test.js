@@ -19,7 +19,6 @@ var options = {criteria: {'_id': '55173af619d7c75c23989c9c'}};
 //var options = {};
 
 printManager.find(options).then((function (imageSet) {
-    console.log(imageSet);
     if (imageSet != null) {
         /**
          * Get the user for the image set even though we have an embedded one.
