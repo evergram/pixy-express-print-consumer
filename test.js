@@ -15,41 +15,56 @@ var consumer = require('./app/consumer');
 //init db
 common.db.connect();
 
-var options = {criteria: {'_id': '55173af619d7c75c23989c9c'}};
-//var options = {};
-
-printManager.find(options).then((function (imageSet) {
-    if (imageSet != null) {
-        /**
-         * Get the user for the image set even though we have an embedded one.
-         */
-        userManager.find({'_id': imageSet.user._id}).
-        then(function (user) {
-            if (!!user) {
-
-                //save images and zip
-                consumer.saveFilesAndZip(user, imageSet).
-                then((function (file) {
-
-                    logger.info('Saved ' + file);
-                    consumer.saveFileToS3(file, user.getUsername()).
-                    then(function (s3File) {
-                        //update the image set to printed
-                        imageSet.isPrinted = true;
-                        imageSet.zipFile = s3File;
-
-                        printManager.save(imageSet).
-                        then(function () {
-                            logger.error('WE DONE ' + user.getUsername());
-                        });
-                    });
-                }).bind(this));
-            } else {
-                logger.error('Could not find user ' + imageSet.user);
-                resolve();
-            }
-        });
-    } else {
-        resolve();
+//var options = {criteria: {'_id': '5517a40305b647db4ee2dd04'}};
+var options = {
+    criteria: {
+        isReadyForPrint: true
     }
-}).bind(this));
+};
+
+printManager.findAll(options).then(function (imageSets) {
+    _.forEach(imageSets, function (imageSet) {
+        if (imageSet != null) {
+            /**
+             * Get the user for the image set even though we have an embedded one.
+             */
+            userManager.find({criteria: {'_id': imageSet.user._id}}).
+            then(function (user) {
+                if (!!user) {
+                    logger.info('Found user ' + user.getUsername());
+                    //save images and zip
+                    consumer.saveFilesAndZip(user, imageSet).
+                    then((function (file) {
+                        if (!!file) {
+                            logger.info('Saved ' + file + 'for ' + user.getUsername());
+                            consumer.saveFileToS3(file, user.getUsername()).
+                            then(function (s3File) {
+                                //update the image set to printed
+                                imageSet.isPrinted = true;
+                                imageSet.zipFile = s3File;
+
+                                printManager.save(imageSet).
+                                then(function () {
+                                    logger.info('WE DONE ' + user.getUsername());
+                                });
+                            });
+                        } else {
+                            logger.info('No files to save for ' + user.getUsername());
+                            //update the image set to printed
+                            imageSet.isPrinted = true;
+
+                            printManager.save(imageSet).
+                            then(function () {
+                                logger.info('WE DONE ' + user.getUsername());
+                            });
+                        }
+                    }).bind(this));
+                } else {
+                    logger.error('Could not find user ' + imageSet.user);
+                }
+            });
+        } else {
+            logger.info('No image sets');
+        }
+    });
+});

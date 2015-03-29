@@ -40,38 +40,58 @@ Consumer.prototype.consume = function () {
         if (!!results[0].Body && !!results[0].Body.id) {
             var id = message.Body.id;
 
+            var deleteMessageAndResolve = function () {
+                deleteMessageFromQueue(results[0]).then(resolve);
+            };
+            var deleteZipFile = function (file) {
+                filesUtil.deleteFile(file);
+            };
+
             printManager.find({criteria: {'_id': id}}).then((function (imageSet) {
                 if (imageSet != null) {
                     /**
                      * Get the user for the image set even though we have an embedded one.
                      */
-                    userManager.find({'_id': imageSet.user._id}).
+                    userManager.find({criteria: {'_id': imageSet.user._id}}).
                     then(function (user) {
                         if (!!user) {
                             //save images and zip
                             this.saveFilesAndZip(user, imageSet).
                             then((function (file) {
-                                logger.info('Successfully zipped files for ' + user.getUsername());
+                                if (!!file) {
+                                    logger.info('Successfully zipped files for ' + user.getUsername());
 
-                                this.saveFileToS3(file, user.getUsername()).
-                                then(function () {
-                                    return deleteMessageFromQueue(results[0]);
-                                }).
-                                then(function () {
+                                    this.saveFileToS3(file, user.getUsername()).
+                                    then(function (s3File) {
+                                        //delete zip
+                                        deleteZipFile(file);
+
+                                        //update the image set to printed
+                                        imageSet.isPrinted = true;
+                                        imageSet.zipFile = s3File;
+
+                                        printManager.save(imageSet).
+                                        then(deleteMessageAndResolve);
+                                    });
+                                } else {
+                                    logger.info('No files to save for ' + user.getUsername());
+
+                                    //delete zip
+                                    deleteZipFile(file);
+
                                     //update the image set to printed
                                     imageSet.isPrinted = true;
-
                                     printManager.save(imageSet).
-                                    then(resolve);
-                                });
+                                    then(deleteMessageAndResolve);
+                                }
                             }).bind(this));
                         } else {
                             logger.error('Could not find user ' + imageSet.user);
-                            deleteMessageFromQueue(results[0]).then(resolve);
+                            deleteMessageAndResolve();
                         }
                     });
                 } else {
-                    deleteMessageFromQueue(results[0]).then(resolve);
+                    deleteMessageAndResolve();
                 }
             }).bind(this));
         } else {
