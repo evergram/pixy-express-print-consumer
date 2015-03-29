@@ -14,8 +14,9 @@ var consumer = require('./app/consumer');
 //init db
 common.db.connect();
 
-//var options = {criteria: {'instagram.username': 'mandycuz'}};
+//var options = {criteria: {'instagram.username': 'luisa_vasta'}};
 var options = {};
+
 
 userManager.findAll(options).then(function (users) {
     var deferreds = [];
@@ -23,8 +24,8 @@ userManager.findAll(options).then(function (users) {
     if (!!users) {
         _.forEach(users, function (user) {
             var deferred = q.defer();
-            printManager.findCurrentByUser(user).then(function (imageSet) {
-                return consumer.saveFilesAndZip(user, imageSet);
+            printManager.findAllByUser(user).then(function (imageSet) {
+                return consumer.saveFilesAndZip(user, imageSet[0]);
             }).then(function (zipFileName) {
                 if (!!zipFileName) {
                     console.log(zipFileName);

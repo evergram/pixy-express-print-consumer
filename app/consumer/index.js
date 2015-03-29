@@ -135,12 +135,66 @@ Consumer.prototype.saveFilesAndZip = function (user, printableImageSet) {
  *
  * @param user
  * @param printableImageSet
+ */
+Consumer.prototype.getReadMeForPrintableImageSet = function (user, printableImageSet) {
+    var filename = user.getUsername() + '-readme';
+    var dir = user.getUsername();
+
+    var setUser = printableImageSet.user;
+    var textImages = '';
+    var textLinks = '';
+    var textAddress = '';
+    var text = '';
+    var lineEnd = "\n";
+
+    _.forEach(printableImageSet.images, function (images, service) {
+        _.forEach(images, function (image) {
+            //TODO This is too specific to instagram. We should look to normalize this.
+            textImages += image.src.raw + lineEnd;
+            textLinks += image.metadata.link + lineEnd;
+        });
+    });
+
+    _.forEach(setUser.address, function (value, key) {
+        if (!!value) {
+            textAddress += _.trim(value) + lineEnd;
+        }
+    });
+
+    text += "User:" + lineEnd;
+    text += setUser.firstName + " " + setUser.lastName + lineEnd;
+    text += setUser.email + lineEnd;
+    text += setUser.instagram.username + lineEnd + lineEnd;
+    text += "Address:" + lineEnd;
+    text += textAddress + lineEnd + lineEnd;
+    text += "Links:" + lineEnd;
+    text += textLinks + lineEnd + lineEnd;
+    text += "Images:" + lineEnd;
+    text += textImages + lineEnd + lineEnd;
+
+    return filesUtil.createTextFile(text, filename, dir);
+}
+
+/**
+ *
+ * @param user
+ * @param printableImageSet
  * @param localImages
  * @returns {*}
  */
 Consumer.prototype.zipFiles = function (user, printableImageSet, localImages) {
     var filename = formatFileName(user, printableImageSet);
-    return filesUtil.zipFiles(localImages, filename);
+    var files = localImages || [];
+
+    //add read me to zip
+    var readMe = this.getReadMeForPrintableImageSet(user, printableImageSet);
+    console.log(readMe)
+    files.push({
+        filepath: readMe,
+        name: path.basename(readMe)
+    });
+
+    return filesUtil.zipFiles(files, filename);
 };
 
 /**
