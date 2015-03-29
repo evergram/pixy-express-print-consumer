@@ -38,23 +38,32 @@ Consumer.prototype.consume = function () {
     sqs.getMessage(sqs.QUEUES.PRINT, {WaitTimeSeconds: config.sqs.waitTime}).
     then((function (results) {
         if (!!results[0].Body && !!results[0].Body.id) {
+            var message = results[0];
             var id = message.Body.id;
 
+            logger.info(id);
             var deleteMessageAndResolve = function () {
-                deleteMessageFromQueue(results[0]).then(resolve);
-            };
-            var deleteZipFile = function (file) {
-                filesUtil.deleteFile(file);
+                deleteMessageFromQueue(message).then(resolve);
             };
 
-            printManager.find({criteria: {'_id': id}}).then((function (imageSet) {
+            var deleteZipFile = function (file) {
+                filesUtil.deleteFile(file);
+                logger.info('Deleted the temp zip file ' +file);
+            };
+
+            printManager.find({criteria: {'_id': id}}).
+            then((function (imageSet) {
                 if (imageSet != null) {
+                    logger.info('Successfully found image set: ' + imageSet._id);
+
                     /**
                      * Get the user for the image set even though we have an embedded one.
                      */
                     userManager.find({criteria: {'_id': imageSet.user._id}}).
-                    then(function (user) {
+                    then((function (user) {
                         if (!!user) {
+                            logger.info('Successfully found the image set user: ' + user.getUsername());
+
                             //save images and zip
                             this.saveFilesAndZip(user, imageSet).
                             then((function (file) {
@@ -89,7 +98,7 @@ Consumer.prototype.consume = function () {
                             logger.error('Could not find user ' + imageSet.user);
                             deleteMessageAndResolve();
                         }
-                    });
+                    }).bind(this));
                 } else {
                     deleteMessageAndResolve();
                 }
