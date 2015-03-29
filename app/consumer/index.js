@@ -35,7 +35,8 @@ Consumer.prototype.consume = function () {
     /**
      * Query SQS to get a message
      */
-    sqs.getMessage(sqs.QUEUES.PRINT, {WaitTimeSeconds: config.sqs.waitTime}).then(function (results) {
+    sqs.getMessage(sqs.QUEUES.PRINT, {WaitTimeSeconds: config.sqs.waitTime}).
+    then((function (results) {
         if (!!results[0].Body && !!results[0].Body.id) {
             var id = message.Body.id;
 
@@ -77,7 +78,7 @@ Consumer.prototype.consume = function () {
             logger.info('No messages on queue');
             resolve();
         }
-    }, function (err) {
+    }).bind(this), function (err) {
         logger.info('No messages on queue');
         /**
          * No messages or error, so just resolve and we'll check again
