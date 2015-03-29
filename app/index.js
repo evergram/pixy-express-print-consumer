@@ -3,6 +3,7 @@
  */
 
 var common = require('evergram-common');
+var logger = common.utils.logger;
 var config = require('./config');
 var consumer = require('./consumer');
 
@@ -10,16 +11,17 @@ var consumer = require('./consumer');
 common.db.connect();
 
 function run() {
-    log('Checking SQS: ');
-    consumer.consume().then(function () {
-        log('Complete: ');
-        setTimeout(run, config.retryWaitTime * 1000);
-        log('Waiting ' + config.retryWaitTime + ' seconds :');
-    });
-}
-
-function log(message) {
-    console.log(message + (new Date()).toDateString() + ' ' + (new Date()).toTimeString());
+    logger.info('-------------------------------------------------------------------');
+    logger.info('Checking print queue');
+    try {
+        consumer.consume().then(function () {
+            logger.info('Completed checking print queue');
+            setTimeout(run, config.retryWaitTime * 1000);
+            logger.info('Waiting ' + config.retryWaitTime + ' seconds before next check');
+        });
+    } catch (err) {
+        logger.error(err);
+    }
 }
 
 //kick off the process

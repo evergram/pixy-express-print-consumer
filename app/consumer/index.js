@@ -7,12 +7,15 @@ var moment = require('moment');
 var q = require('q');
 var path = require("path");
 var common = require('evergram-common');
-var aws = common.aws;
-var config = require('../config');
+var s3 = common.aws.s3;
+var s3Bucket = common.config.aws.s3.bucket;
+var sqs = common.aws.sqs;
 var imageManager = common.image.manager;
 var printManager = common.print.manager;
+var userManager = common.user.manager;
 var filesUtil = common.utils.files;
 var logger = common.utils.logger;
+var config = require('../config');
 
 /**
  * A consumer that handles all of the consumers
@@ -32,23 +35,80 @@ Consumer.prototype.consume = function () {
     /**
      * Query SQS to get a message
      */
-    aws.sqs.getMessage(aws.sqs.QUEUES.INSTAGRAM, {WaitTimeSeconds: config.sqs.waitTime}).then(function (results) {
+    sqs.getMessage(sqs.QUEUES.PRINT, {WaitTimeSeconds: config.sqs.waitTime}).
+    then((function (results) {
         if (!!results[0].Body && !!results[0].Body.id) {
+            var message = results[0];
             var id = message.Body.id;
 
-            printManager.find({'_id': id}).then(function (printableImageSet) {
-                if (printableImageSet != null) {
+            logger.info(id);
+            var deleteMessageAndResolve = function () {
+                deleteMessageFromQueue(message).then(resolve);
+            };
 
+            var deleteZipFile = function (file) {
+                filesUtil.deleteFile(file);
+                logger.info('Deleted the temp zip file ' +file);
+            };
+
+            printManager.find({criteria: {'_id': id}}).
+            then((function (imageSet) {
+                if (imageSet != null) {
+                    logger.info('Successfully found image set: ' + imageSet._id);
+
+                    /**
+                     * Get the user for the image set even though we have an embedded one.
+                     */
+                    userManager.find({criteria: {'_id': imageSet.user._id}}).
+                    then((function (user) {
+                        if (!!user) {
+                            logger.info('Successfully found the image set user: ' + user.getUsername());
+
+                            //save images and zip
+                            this.saveFilesAndZip(user, imageSet).
+                            then((function (file) {
+                                if (!!file) {
+                                    logger.info('Successfully zipped files for ' + user.getUsername());
+
+                                    this.saveFileToS3(file, user.getUsername()).
+                                    then(function (s3File) {
+                                        //delete zip
+                                        deleteZipFile(file);
+
+                                        //update the image set to printed
+                                        imageSet.isPrinted = true;
+                                        imageSet.zipFile = s3File;
+
+                                        printManager.save(imageSet).
+                                        then(deleteMessageAndResolve);
+                                    });
+                                } else {
+                                    logger.info('No files to save for ' + user.getUsername());
+
+                                    //delete zip
+                                    deleteZipFile(file);
+
+                                    //update the image set to printed
+                                    imageSet.isPrinted = true;
+                                    printManager.save(imageSet).
+                                    then(deleteMessageAndResolve);
+                                }
+                            }).bind(this));
+                        } else {
+                            logger.error('Could not find user ' + imageSet.user);
+                            deleteMessageAndResolve();
+                        }
+                    }).bind(this));
                 } else {
-                    resolve();
+                    deleteMessageAndResolve();
                 }
-            });
+            }).bind(this));
         } else {
-            console.log('No messages on queue');
+            logger.info('No messages on queue');
             resolve();
         }
-    }, function (err) {
-        console.log('No messages on queue');
+    }).bind(this), function (err) {
+        logger.info('No messages on queue');
         /**
          * No messages or error, so just resolve and we'll check again
          */
@@ -58,22 +118,36 @@ Consumer.prototype.consume = function () {
     return deferred.promise;
 };
 
+Consumer.prototype.saveFileToS3 = function (file, dir) {
+    logger.info('Saving file ' + file + ' to S3');
+
+    var filename = config.s3.folder + '/' + dir + '/' + path.basename(file);
+    return s3.create(file, {
+        bucket: s3Bucket,
+        key: filename,
+        acl: 'public-read'
+    });
+};
+
 /**
+ * Saves all images from an image set in a local temp directory.
  *
  * @param user
- * @param printableImageSet
+ * @param imageSet
  * @returns {promise|*|Q.promise}
  */
-Consumer.prototype.saveFiles = function (user, printableImageSet) {
+Consumer.prototype.saveFiles = function (user, imageSet) {
     var deferred = q.defer();
     var imagesDeferred = [];
-    var imageSets = printableImageSet.images;
+    var imageSets = imageSet.images;
     var localImages = [];
     var userDir = getUserDirectory(user);
 
+    logger.info('Saving images for ' + user.getUsername());
+
     _.forEach(imageSets, function (images, service) {
         if (images.length > 0 && !!user[service]) {
-            var filename = formatFileName(user, printableImageSet) + '-';
+            var filename = formatFileName(user, imageSet) + '-';
 
             _.forEach(images, function (image, i) {
                 var imgDeferred = q.defer();
@@ -82,7 +156,8 @@ Consumer.prototype.saveFiles = function (user, printableImageSet) {
                 //TODO change the legacy file name when we automate the printing
                 //var imgFileName = filename + i;
                 var imgFileName = legacyFormatFileName(user, image.src.raw);
-                imageManager.saveFromUrl(image.src.raw, imgFileName, userDir).then(function (savedFilepath) {
+                imageManager.saveFromUrl(image.src.raw, imgFileName, userDir).
+                then(function (savedFilepath) {
                     /**
                      * Add the saved file to all local images
                      */
@@ -98,6 +173,7 @@ Consumer.prototype.saveFiles = function (user, printableImageSet) {
     });
 
     q.all(imagesDeferred).then(function () {
+        logger.info('Found ' + localImages.length + ' images for ' + user.getUsername());
         deferred.resolve(localImages);
     });
 
@@ -105,25 +181,29 @@ Consumer.prototype.saveFiles = function (user, printableImageSet) {
 };
 
 /**
+ * Saves all images from an image set locally and then zips them up.
+ *
+ * Resolves with the zipped filepath.
  *
  * @param user
- * @param printableImageSet
+ * @param imageSet
  * @returns {promise|*|Q.promise}
  */
-Consumer.prototype.saveFilesAndZip = function (user, printableImageSet) {
+Consumer.prototype.saveFilesAndZip = function (user, imageSet) {
     var deferred = q.defer();
     var userDir = getUserDirectory(user);
 
-    this.saveFiles(user, printableImageSet).then((function (localImages) {
+    this.saveFiles(user, imageSet).then((function (localImages) {
         if (localImages.length > 0) {
-            this.zipFiles(user, printableImageSet, localImages).then(function (savedZipFile) {
+            this.zipFiles(user, imageSet, localImages).
+            then(function (savedZipFile) {
                 filesUtil.deleteFromTempDirectory(userDir);
-
                 deferred.resolve(savedZipFile);
+            }, function (err) {
+                logger.error(err);
             });
         } else {
             filesUtil.deleteFromTempDirectory(userDir);
-
             deferred.resolve();
         }
     }).bind(this));
@@ -132,22 +212,23 @@ Consumer.prototype.saveFilesAndZip = function (user, printableImageSet) {
 };
 
 /**
+ * Generates a readme.txt with address, links and images.
  *
  * @param user
- * @param printableImageSet
+ * @param imageSet
  */
-Consumer.prototype.getReadMeForPrintableImageSet = function (user, printableImageSet) {
+Consumer.prototype.getReadMeForPrintableImageSet = function (user, imageSet) {
     var filename = user.getUsername() + '-readme';
     var dir = user.getUsername();
 
-    var setUser = printableImageSet.user;
+    var setUser = imageSet.user;
     var textImages = '';
     var textLinks = '';
     var textAddress = '';
     var text = '';
     var lineEnd = "\n";
 
-    _.forEach(printableImageSet.images, function (images, service) {
+    _.forEach(imageSet.images, function (images, service) {
         _.forEach(images, function (image) {
             //TODO This is too specific to instagram. We should look to normalize this.
             textImages += image.src.raw + lineEnd;
@@ -176,19 +257,23 @@ Consumer.prototype.getReadMeForPrintableImageSet = function (user, printableImag
 }
 
 /**
+ * Zips up the past files.
+ *
+ * Resolves with the zip filepath.
  *
  * @param user
- * @param printableImageSet
+ * @param imageSet
  * @param localImages
  * @returns {*}
  */
-Consumer.prototype.zipFiles = function (user, printableImageSet, localImages) {
-    var filename = formatFileName(user, printableImageSet);
+Consumer.prototype.zipFiles = function (user, imageSet, localImages) {
+    logger.info('Zipping ' + localImages.length + ' images for ' + user.getUsername());
+
+    var filename = formatFileName(user, imageSet);
     var files = localImages || [];
 
     //add read me to zip
-    var readMe = this.getReadMeForPrintableImageSet(user, printableImageSet);
-    console.log(readMe)
+    var readMe = this.getReadMeForPrintableImageSet(user, imageSet);
     files.push({
         filepath: readMe,
         name: path.basename(readMe)
@@ -201,11 +286,11 @@ Consumer.prototype.zipFiles = function (user, printableImageSet, localImages) {
  * Gets a nicely formatted file name
  *
  * @param user
- * @param printableImageSet
+ * @param imageSet
  * @returns {string}
  */
-function formatFileName(user, printableImageSet) {
-    return user.getUsername() + '-' + moment(printableImageSet.date).format("YYYY-MM-DD");
+function formatFileName(user, imageSet) {
+    return user.getUsername() + '-' + moment(imageSet.date).format("YYYY-MM-DD");
 }
 
 /**
@@ -225,6 +310,16 @@ function legacyFormatFileName(user, imageSrc) {
  */
 function getUserDirectory(user) {
     return user.getUsername() + '/';
+}
+
+/**
+ * Convenience function to delete a message from the SQS.
+ *
+ * @param result
+ * @returns {*}
+ */
+function deleteMessageFromQueue(result) {
+    return sqs.deleteMessage(sqs.QUEUES.PRINT, result);
 }
 
 /**
