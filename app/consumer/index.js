@@ -10,6 +10,7 @@ var common = require('evergram-common');
 var s3 = common.aws.s3;
 var s3Bucket = common.config.aws.s3.bucket;
 var sqs = common.aws.sqs;
+var emailManager = common.email.manager;
 var imageManager = common.image.manager;
 var printManager = common.print.manager;
 var userManager = common.user.manager;
@@ -48,7 +49,7 @@ Consumer.prototype.consume = function () {
 
             var deleteZipFile = function (file) {
                 filesUtil.deleteFile(file);
-                logger.info('Deleted the temp zip file ' +file);
+                logger.info('Deleted the temp zip file ' + file);
             };
 
             printManager.find({criteria: {'_id': id}}).
@@ -71,13 +72,19 @@ Consumer.prototype.consume = function () {
                                     logger.info('Successfully zipped files for ' + user.getUsername());
 
                                     this.saveFileToS3(file, user.getUsername()).
-                                    then(function (s3File) {
-                                        //delete zip
-                                        deleteZipFile(file);
+                                    then((function (s3File) {
+                                        logger.info('Successfully saved files to S3 files for ' + user.getUsername());
 
                                         //update the image set to printed
                                         imageSet.isPrinted = true;
                                         imageSet.zipFile = s3File;
+
+                                        //send an email to printer
+                                        return this.sendEmailToPrinter(user, imageSet);
+                                    }).bind(this)).
+                                    then(function () {
+                                        //delete zip
+                                        deleteZipFile(file);
 
                                         printManager.save(imageSet).
                                         then(deleteMessageAndResolve);
@@ -224,9 +231,8 @@ Consumer.prototype.getReadMeForPrintableImageSet = function (user, imageSet) {
     var setUser = imageSet.user;
     var textImages = '';
     var textLinks = '';
-    var textAddress = '';
     var text = '';
-    var lineEnd = "\n";
+    var lineEnd = '\n';
 
     _.forEach(imageSet.images, function (images, service) {
         _.forEach(images, function (image) {
@@ -236,25 +242,51 @@ Consumer.prototype.getReadMeForPrintableImageSet = function (user, imageSet) {
         });
     });
 
-    _.forEach(setUser.address, function (value, key) {
-        if (!!value) {
-            textAddress += _.trim(value) + lineEnd;
-        }
-    });
-
-    text += "User:" + lineEnd;
-    text += setUser.firstName + " " + setUser.lastName + lineEnd;
-    text += setUser.email + lineEnd;
-    text += setUser.instagram.username + lineEnd + lineEnd;
-    text += "Address:" + lineEnd;
-    text += textAddress + lineEnd + lineEnd;
-    text += "Links:" + lineEnd;
-    text += textLinks + lineEnd + lineEnd;
-    text += "Images:" + lineEnd;
-    text += textImages + lineEnd + lineEnd;
+    text += 'User:' + lineEnd;
+    text += formatUser(setUser) + lineEnd + lineEnd;
+    text += 'Address:' + lineEnd;
+    text += formatAddress(setUser) + lineEnd + lineEnd;
 
     return filesUtil.createTextFile(text, filename, dir);
-}
+};
+
+/**
+ * Sends an email to the configured printer.
+ *
+ * @param user
+ * @param imageSet
+ * @returns {promise|*|q.promise|*}
+ */
+Consumer.prototype.sendEmailToPrinter = function (user, imageSet) {
+    var deferred = q.defer();
+
+    if (config.printer.sendEmail) {
+        var toEmail = config.printer.emailTo;
+        var fromEmail = config.printer.emailFrom;
+
+        var subject = 'Images ready for print for ' + user.getUsername() + ' - ' + moment(imageSet.dateStart).format('DD-MM-YYYY');
+        var message = 'Images are ready to print for ' + user.getUsername() + '<br><br>';
+
+        message += '<strong>User:</strong><br>';
+        message += formatUser(imageSet.user, '<br>') + '<br><br>';
+        message += '<strong>Address:</strong><br>'
+        message += formatAddress(imageSet.user, '<br>') + '<br><br>';
+        message += '<strong>Image set</strong>:<br>';
+        message += '<a href="' + imageSet.zipFile + '">' + imageSet.zipFile + '</a>';
+
+        logger.info('Sending email to ' + toEmail + ' from ' + fromEmail + ' for ' + user.getUsername());
+
+        emailManager.send(toEmail, fromEmail, subject, message).then(function (result) {
+            deferred.resolve(result);
+        }, function (err) {
+            deferred.reject(err);
+        });
+    } else {
+        deferred.resolve();
+    }
+
+    return deferred;
+};
 
 /**
  * Zips up the past files.
@@ -281,6 +313,36 @@ Consumer.prototype.zipFiles = function (user, imageSet, localImages) {
 
     return filesUtil.zipFiles(files, filename);
 };
+
+function formatUser(user, lineEnd) {
+    var text = '';
+    if (!lineEnd) {
+        lineEnd = '\n';
+    }
+
+    text += _.trim(user.firstName) + ' ' + _.trim(user.lastName) + lineEnd;
+    text += _.trim(user.email) + lineEnd;
+    text += '@' + _.trim(user.instagram.username);
+
+    return text;
+}
+
+function formatAddress(user, lineEnd) {
+    var text = '';
+    if (!lineEnd) {
+        lineEnd = '\n';
+    }
+
+    text += _.trim(user.address.line1) + lineEnd;
+    if (!_.isEmpty(user.address.line2)) {
+        text += _.trim(user.address.line2) + lineEnd;
+    }
+    text += _.trim(user.address.suburb) + lineEnd;
+    text += _.trim(user.address.state) + ', ' + _.trim(user.address.postcode) + lineEnd;
+    text += _.trim(user.address.country);
+
+    return text;
+}
 
 /**
  * Gets a nicely formatted file name
