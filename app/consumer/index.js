@@ -77,6 +77,7 @@ Consumer.prototype.consume = function () {
 
                                         //update the image set to printed
                                         imageSet.isPrinted = true;
+                                        imageSet.inQueue = false;
                                         imageSet.zipFile = s3File;
 
                                         //send an email to printer
@@ -263,9 +264,11 @@ Consumer.prototype.sendEmailToPrinter = function (user, imageSet) {
     if (config.printer.sendEmail) {
         var toEmail = config.printer.emailTo;
         var fromEmail = config.printer.emailFrom;
+        var startDate = moment(imageSet.startDate).format('DD-MM-YYYY');
+        var endDate = moment(imageSet.endDate).format('DD-MM-YYYY');
 
-        var subject = 'Images ready for print for ' + user.getUsername() + ' - ' + moment(imageSet.dateStart).format('DD-MM-YYYY');
-        var message = 'Images are ready to print for ' + user.getUsername() + '<br><br>';
+        var subject = 'Images ready for print for ' + user.getUsername() + ' - ' + startDate;
+        var message = 'Images are ready to print for ' + user.getUsername() + ' for the period from ' + startDate + ' to ' + endDate + '<br><br>';
 
         message += '<strong>User:</strong><br>';
         message += formatUser(imageSet.user, '<br>') + '<br><br>';
