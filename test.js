@@ -15,12 +15,12 @@ var consumer = require('./app/consumer');
 //init db
 common.db.connect();
 
-//var options = {criteria: {'_id': '5517a40305b647db4ee2dd04'}};
-var options = {
-    criteria: {
-        isReadyForPrint: true
-    }
-};
+var options = {criteria: {'_id': '5517af0b34d37b615d9eb78a'}};
+//var options = {
+//    criteria: {
+//        isReadyForPrint: true
+//    }
+//};
 
 printManager.findAll(options).then(function (imageSets) {
     _.forEach(imageSets, function (imageSet) {
@@ -45,6 +45,9 @@ printManager.findAll(options).then(function (imageSets) {
 
                                 printManager.save(imageSet).
                                 then(function () {
+                                    logger.info('Successfully saved files to S3 files for ' + user.getUsername());
+                                    return consumer.sendEmailToPrinter(user, imageSet);
+                                }).then(function () {
                                     logger.info('WE DONE ' + user.getUsername());
                                 });
                             });
