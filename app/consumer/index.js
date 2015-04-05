@@ -24,13 +24,15 @@ var config = require('../config');
  * @constructor
  */
 function Consumer() {
-
 }
 
 Consumer.prototype.consume = function () {
     var deferred = q.defer();
     var resolve = function () {
         deferred.resolve();
+    };
+    var failed = function (err) {
+        deferred.reject(err);
     };
 
     /**
@@ -42,9 +44,13 @@ Consumer.prototype.consume = function () {
             var message = results[0];
             var id = message.Body.id;
 
-            logger.info(id);
             var deleteMessageAndResolve = function () {
                 deleteMessageFromQueue(message).then(resolve);
+            };
+            var deleteMessageAndFail = function (err) {
+                deleteMessageFromQueue(message).then(function () {
+                    failed(err);
+                });
             };
 
             var deleteZipFile = function (file) {
@@ -78,7 +84,7 @@ Consumer.prototype.consume = function () {
                                         //update the image set to printed
                                         imageSet.isPrinted = true;
                                         imageSet.inQueue = false;
-                                        imageSet.zipFile = s3File;
+                                        imageSet.zipFile = s3File.Location;
 
                                         //send an email to printer
                                         return this.sendEmailToPrinter(user, imageSet);
@@ -89,7 +95,9 @@ Consumer.prototype.consume = function () {
 
                                         printManager.save(imageSet).
                                         then(deleteMessageAndResolve);
-                                    });
+                                    }).
+                                    fail(deleteMessageAndFail).
+                                    done();
                                 } else {
                                     logger.info('No files to save for ' + user.getUsername());
 
@@ -101,27 +109,29 @@ Consumer.prototype.consume = function () {
                                     printManager.save(imageSet).
                                     then(deleteMessageAndResolve);
                                 }
-                            }).bind(this));
+                            }).bind(this)).
+                            fail(deleteMessageAndFail).
+                            done();
                         } else {
                             logger.error('Could not find user ' + imageSet.user);
                             deleteMessageAndResolve();
                         }
-                    }).bind(this));
+                    }).bind(this)).
+                    fail(failed).
+                    done();
                 } else {
                     deleteMessageAndResolve();
                 }
-            }).bind(this));
+            }).bind(this)).
+            fail(failed).
+            done();
         } else {
             logger.info('No messages on queue');
             resolve();
         }
-    }).bind(this), function (err) {
-        logger.info('No messages on queue');
-        /**
-         * No messages or error, so just resolve and we'll check again
-         */
-        resolve();
-    });
+    }).bind(this)).
+    fail(failed).
+    done();
 
     return deferred.promise;
 };
