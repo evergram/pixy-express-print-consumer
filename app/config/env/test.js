@@ -5,8 +5,8 @@
 module.exports = {
     printer: {
         sendEmail: true,
-        emailTo: process.env.PRINT_TO_EMAIL | 'hello@evergram.co',
-        emailFrom: process.env.PRINT_FROM_EMAIL | 'hello@evergram.co'
+        emailTo: process.env.PRINT_TO_EMAIL || 'hello@evergram.co',
+        emailFrom: process.env.PRINT_FROM_EMAIL || 'hello@evergram.co'
     },
     s3: {
         folder: 'user-images'
