@@ -18,7 +18,9 @@ function run() {
             logger.info('Completed checking print queue');
             setTimeout(run, config.retryWaitTime * 1000);
             logger.info('Waiting ' + config.retryWaitTime + ' seconds before next check');
-        });
+        }).fail(function (err) {
+            logger.info('Failed: ', err);
+        }).done();
     } catch (err) {
         logger.error(err);
     }
