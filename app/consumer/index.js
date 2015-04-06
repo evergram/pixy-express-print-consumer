@@ -7,6 +7,8 @@ var moment = require('moment');
 var q = require('q');
 var path = require("path");
 var common = require('evergram-common');
+var config = require('../config');
+var trackingManager = require('../tracking');
 var s3 = common.aws.s3;
 var s3Bucket = common.config.aws.s3.bucket;
 var sqs = common.aws.sqs;
@@ -16,7 +18,6 @@ var printManager = common.print.manager;
 var userManager = common.user.manager;
 var filesUtil = common.utils.files;
 var logger = common.utils.logger;
-var config = require('../config');
 
 /**
  * A consumer that handles all of the consumers
@@ -86,6 +87,9 @@ Consumer.prototype.consume = function () {
                                         imageSet.inQueue = false;
                                         imageSet.zipFile = s3File.Location;
 
+                                        //track
+                                        trackingManager.trackPrintedImageSet(user, imageSet);
+
                                         //send an email to printer
                                         return this.sendEmailToPrinter(user, imageSet);
                                     }).bind(this)).
@@ -100,6 +104,9 @@ Consumer.prototype.consume = function () {
                                     done();
                                 } else {
                                     logger.info('No files to save for ' + user.getUsername());
+
+                                    //track
+                                    trackingManager.trackPrintedImageSet(user, imageSet);
 
                                     //delete zip
                                     deleteZipFile(file);
