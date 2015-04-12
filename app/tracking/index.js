@@ -37,6 +37,7 @@ TrackingManager.prototype.trackPrintedImageSet = function (user, imageSet) {
     logger.info('Tracking ' + event + ' for ' + user.getUsername());
 
     return trackingManager.trackEvent(user, event, {
+        'Plan': user.billing.option,
         'Instagram Username': user.instagram.username,
         'Period': user.getPeriodFromStartDate(imageSet.startDate),
         'Country': imageSet.user.address.country,
