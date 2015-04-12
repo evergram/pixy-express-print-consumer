@@ -15,5 +15,5 @@ module.exports = {
         waitTime: process.env.SQS_WAIT_TIME || 20 //seconds
     },
     retryWaitTime: process.env.RETRY_WAIT_TIME || 60, //seconds
-    track: true
+    track: process.env.TRACK_PRINTING || true
 };
