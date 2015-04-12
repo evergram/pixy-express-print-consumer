@@ -4,7 +4,7 @@
 
 module.exports = {
     printer: {
-        sendEmail: true,
+        sendEmail: false,
         emailTo: 'josh@evergram.co',
         emailFrom: 'hello@evergram.co'
     },
@@ -14,5 +14,6 @@ module.exports = {
     sqs: {
         waitTime: 1 //seconds
     },
-    retryWaitTime: 60 //seconds
+    retryWaitTime: 60, //seconds
+    track: false
 };

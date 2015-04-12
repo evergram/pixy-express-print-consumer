@@ -88,7 +88,7 @@ Consumer.prototype.consume = function () {
                                         imageSet.zipFile = s3File.Location;
 
                                         //track
-                                        trackingManager.trackPrintedImageSet(user, imageSet);
+                                        trackPrintedImageSet(user, imageSet);
 
                                         //send an email to printer
                                         return this.sendEmailToPrinter(user, imageSet);
@@ -106,7 +106,7 @@ Consumer.prototype.consume = function () {
                                     logger.info('No files to save for ' + user.getUsername());
 
                                     //track
-                                    trackingManager.trackPrintedImageSet(user, imageSet);
+                                    trackPrintedImageSet(user, imageSet);
 
                                     //delete zip
                                     deleteZipFile(file);
@@ -334,6 +334,25 @@ Consumer.prototype.zipFiles = function (user, imageSet, localImages) {
     return filesUtil.zipFiles(files, filename);
 };
 
+/**
+ * Tracks the event
+ *
+ * @param user
+ * @param imageSet
+ */
+function trackPrintedImageSet(user, imageSet) {
+    if (!!config.track) {
+        trackingManager.trackPrintedImageSet(user, imageSet);
+    }
+}
+
+/**
+ * Formats the user for the readme and email
+ *
+ * @param user
+ * @param lineEnd
+ * @returns {string}
+ */
 function formatUser(user, lineEnd) {
     var text = '';
     if (!lineEnd) {
@@ -347,6 +366,13 @@ function formatUser(user, lineEnd) {
     return text;
 }
 
+/**
+ * Formats the address for the readme and email
+ *
+ * @param user
+ * @param lineEnd
+ * @returns {string}
+ */
 function formatAddress(user, lineEnd) {
     var text = '';
     if (!lineEnd) {
