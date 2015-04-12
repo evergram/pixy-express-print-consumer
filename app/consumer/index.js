@@ -278,7 +278,7 @@ Consumer.prototype.getReadMeForPrintableImageSet = function (user, imageSet) {
 Consumer.prototype.sendEmailToPrinter = function (user, imageSet) {
     var deferred = q.defer();
 
-    if (config.printer.sendEmail) {
+    if (!!config.printer.sendEmail && config.printer.sendEmail !== 'false') {
         var toEmail = config.printer.emailTo;
         var fromEmail = config.printer.emailFrom;
         var startDate = moment(imageSet.startDate).format('DD-MM-YYYY');
@@ -341,7 +341,7 @@ Consumer.prototype.zipFiles = function (user, imageSet, localImages) {
  * @param imageSet
  */
 function trackPrintedImageSet(user, imageSet) {
-    if (!!config.track) {
+    if (!!config.track && config.track !== 'false') {
         trackingManager.trackPrintedImageSet(user, imageSet);
     }
 }
