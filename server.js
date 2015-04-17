@@ -2,6 +2,7 @@
  * Module dependencies
  */
 
+require('newrelic');
 var app = require('./app');
 
 /**
