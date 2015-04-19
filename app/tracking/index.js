@@ -17,7 +17,7 @@ function TrackingManager() {
 }
 
 TrackingManager.prototype.trackPrintedImageSet = function (user, imageSet) {
-    var event = 'Finalized Image Set';
+    var event = 'Shipped photos';
 
     var total = 0;
     var owned = 0;
@@ -37,18 +37,15 @@ TrackingManager.prototype.trackPrintedImageSet = function (user, imageSet) {
     logger.info('Tracking ' + event + ' for ' + user.getUsername());
 
     return trackingManager.trackEvent(user, event, {
-        'Plan': user.billing.option,
-        'Instagram Username': user.instagram.username,
-        'Period': user.getPeriodFromStartDate(imageSet.startDate),
-        'Country': imageSet.user.address.country,
-        'State': imageSet.user.address.state,
-        'City': imageSet.user.address.suburb,
-        'Image Set Start Date': imageSet.startDate,
-        'Image Set End Date': imageSet.endDate,
-        'Total Images Tagged': total,
-        'Total Own Images Tagged': owned,
-        'Total Other Images Tagged': other
-    });
+        imageSetId: imageSet._id.toString(),
+        photoCount: total,
+        ownPhotoCount: owned,
+        friendsPhotoCount: other,
+        period: imageSet.period,
+        startDate: moment(imageSet.startDate).toDate(),
+        endDate: moment(imageSet.endDate).toDate(),
+        shippedOn: moment(imageSet.endDate).toDate()
+    }, moment(imageSet.endDate).toDate());
 };
 
 /**
