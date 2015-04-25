@@ -15,19 +15,21 @@ common.db.connect();
 function run() {
     logger.info('Checking print queue');
     try {
-        consumer.consume().then(newrelic.createBackgroundTransaction('jobs:process-queue', function (message) {
+        consumer.consume().then(newrelic.createBackgroundTransaction('jobs:process-queue', function(message) {
             newrelic.endTransaction();
             if (!_.isEmpty(message)) {
                 logger.info(message);
             }
+
             logger.info('Completed checking print queue');
             logger.info('Waiting ' + (retryWaitTime / 1000) + ' seconds before next check');
             setTimeout(run, retryWaitTime);
-        })).fail(function (err) {
+        })).fail(function(err) {
             newrelic.endTransaction();
             if (!_.isEmpty(err)) {
                 logger.info(err);
             }
+
             logger.info('Waiting ' + (retryWaitTime / 1000) + ' seconds before next check');
             setTimeout(run, retryWaitTime);
         }).done();

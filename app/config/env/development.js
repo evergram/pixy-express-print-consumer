@@ -12,8 +12,11 @@ module.exports = {
         folder: 'user-images'
     },
     sqs: {
-        waitTime: 1 //seconds
+        //seconds
+        waitTime: 1
     },
-    retryWaitTime: 60, //seconds
+
+    //seconds
+    retryWaitTime: 60,
     track: false
 };
