@@ -250,24 +250,12 @@ Consumer.prototype.getReadMeForPrintableImageSet = function(user, imageSet) {
     var dir = user.getUsername();
 
     var setUser = imageSet.user;
-    var textImages = '';
-    var textLinks = '';
     var text = '';
     var lineEnd = '\n';
 
-    _.forEach(imageSet.images, function(images) {
-        _.forEach(images, function(image) {
-            //TODO This is too specific to instagram. We should look to normalize this.
-            textImages += image.src.raw + lineEnd;
-            textLinks += image.metadata.link + lineEnd;
-        });
-    });
-
-    text += 'User:' + lineEnd;
-    text += formatUser(setUser) + lineEnd + lineEnd;
-    text += 'Address:' + lineEnd;
-    text += formatAddress(setUser) + lineEnd + lineEnd;
-
+    text += moment(imageSet.endDate).format('DD-MM-YYYY') + lineEnd;
+    text += formatUser(setUser);
+    text += formatAddress(setUser);
     return filesUtil.createTextFile(text, filename, dir);
 };
 
@@ -291,9 +279,7 @@ Consumer.prototype.sendEmailToPrinter = function(user, imageSet) {
         var message = 'Images are ready to print for ' + user.getUsername() + ' for the period from ' + startDate +
             ' to ' + endDate + '<br><br>';
 
-        message += '<strong>User:</strong><br>';
-        message += formatUser(imageSet.user, '<br>') + '<br><br>';
-        message += '<strong>Address:</strong><br>';
+        message += formatUser(imageSet.user, '<br>');
         message += formatAddress(imageSet.user, '<br>') + '<br><br>';
         message += '<strong>Image set</strong>:<br>';
         message += '<a href="' + imageSet.zipFile + '">' + imageSet.zipFile + '</a>';
@@ -365,9 +351,8 @@ function formatUser(user, lineEnd) {
         lineEnd = '\n';
     }
 
+    text += '@' + _.trim(user.instagram.username) + lineEnd;
     text += _.trim(user.firstName) + ' ' + _.trim(user.lastName) + lineEnd;
-    text += _.trim(user.email) + lineEnd;
-    text += '@' + _.trim(user.instagram.username);
 
     return text;
 }
