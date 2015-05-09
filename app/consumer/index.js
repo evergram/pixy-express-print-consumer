@@ -391,7 +391,11 @@ function formatAddress(user, lineEnd) {
  * @returns {string}
  */
 function formatFileName(user, imageSet) {
-    return user.getUsername() + '-' + moment(imageSet.date).format('YYYY-MM-DD');
+    return user.getUsername() +
+        '-' +
+        moment(imageSet.startDate).format('YYYY-MM-DD') +
+        '-to-' +
+        moment(imageSet.endDate).format('YYYY-MM-DD');
 }
 
 /**
