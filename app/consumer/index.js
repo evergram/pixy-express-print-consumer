@@ -28,124 +28,146 @@ function Consumer() {
 }
 
 Consumer.prototype.consume = function() {
-    var deferred = q.defer();
-    var resolve = function() {
-        deferred.resolve();
-    };
-
-    var failed = function(err) {
-        deferred.reject(err);
-    };
+    var currentMessage;
+    var currentImageSet;
+    var currentUser;
+    var currentZipFile;
 
     /**
      * Query SQS to get a message
      */
-    sqs.getMessage(sqs.QUEUES.PRINT, {WaitTimeSeconds: config.sqs.waitTime}).
-        then((function(results) {
-            if (!!results[0].Body && !!results[0].Body.id) {
-                var message = results[0];
-                var id = message.Body.id;
+    return getMessage().
+        then(function(message) {
+            currentMessage = message;
+            var id = message.Body.id;
 
-                var deleteMessageAndResolve = function() {
-                    deleteMessageFromQueue(message).then(resolve);
-                };
-                var deleteMessageAndFail = function(err) {
-                    deleteMessageFromQueue(message).then(function() {
-                        failed(err);
-                    });
-                };
+            return getImageSet(id);
+        }).
+        then(function(imageSet) {
+            currentImageSet = imageSet;
 
-                var deleteZipFile = function(file) {
-                    filesUtil.deleteFile(file);
-                    logger.info('Deleted the temp zip file ' + file);
-                };
+            return getUser(currentImageSet.user._id);
+        }).
+        then(function(user) {
+            currentUser = user;
 
-                printManager.find({criteria: {_id: id}}).
-                    then((function(imageSet) {
-                        if (imageSet !== null) {
-                            logger.info('Successfully found image set: ' + imageSet._id);
+            return saveImagesAndZip(currentUser, currentImageSet);
+        }).
+        then(function(zipFile) {
+            currentZipFile = zipFile;
 
-                            /**
-                             * Get the user for the image set even though we have an embedded one.
-                             */
-                            userManager.find({criteria: {_id: imageSet.user._id}}).
-                                then((function(user) {
-                                    if (!!user) {
-                                        logger.info('Successfully found the image set user: ' + user.getUsername());
+            return saveZipToS3(zipFile, currentUser.getUsername());
+        }).
+        then(function(s3File) {
+            currentImageSet.isPrinted = true;
+            currentImageSet.zipFile = s3File.Location;
 
-                                        //save images and zip
-                                        this.saveFilesAndZip(user, imageSet).
-                                            then((function(file) {
-                                                if (!!file) {
-                                                    logger.info('Successfully zipped files for ' + user.getUsername());
+            //track
+            trackPrintedImageSet(currentUser, currentImageSet);
 
-                                                    this.saveFileToS3(file, user.getUsername()).
-                                                        then((function(s3File) {
-                                                            logger.info('Successfully saved files to S3 files for ' +
-                                                            user.getUsername());
-
-                                                            //update the image set to printed
-                                                            imageSet.isPrinted = true;
-                                                            imageSet.inQueue = false;
-                                                            imageSet.zipFile = s3File.Location;
-
-                                                            //track
-                                                            trackPrintedImageSet(user, imageSet);
-
-                                                            //send an email to printer
-                                                            return this.sendEmailToPrinter(user, imageSet);
-                                                        }).bind(this)).
-                                                        then(function() {
-                                                            //delete zip
-                                                            deleteZipFile(file);
-
-                                                            printManager.save(imageSet).
-                                                                then(deleteMessageAndResolve);
-                                                        }).
-                                                        fail(deleteMessageAndFail).
-                                                        done();
-                                                } else {
-                                                    logger.info('No files to save for ' + user.getUsername());
-
-                                                    //track
-                                                    trackPrintedImageSet(user, imageSet);
-
-                                                    //delete zip
-                                                    deleteZipFile(file);
-
-                                                    //update the image set to printed
-                                                    imageSet.isPrinted = true;
-                                                    printManager.save(imageSet).
-                                                        then(deleteMessageAndResolve);
-                                                }
-                                            }).bind(this)).
-                                            fail(deleteMessageAndFail).
-                                            done();
-                                    } else {
-                                        logger.error('Could not find user ' + imageSet.user);
-                                        deleteMessageAndResolve();
-                                    }
-                                }).bind(this)).
-                                fail(failed).
-                                done();
-                        } else {
-                            deleteMessageAndResolve();
-                        }
-                    }).bind(this)).
-                    fail(failed).
-                    done();
-            } else {
-                logger.info('No messages on queue');
-                resolve();
-            }
-        }).bind(this)).
-        fail(failed).
-        done();
-
-    return deferred.promise;
+            return sendToPrinter(currentUser, currentImageSet);
+        }).
+        finally(function() {
+            return cleanUp(currentMessage, currentImageSet, currentZipFile);
+        });
 };
 
-Consumer.prototype.saveFileToS3 = function(file, dir) {
+/**
+ * Clean up the queue, image set and zip file at any stage of the consume process.
+ *
+ * @param message
+ * @param imageSet
+ * @param zipFile
+ * @returns {*}
+ */
+function cleanUp(message, imageSet, zipFile) {
+    var deferreds = [];
+
+    if (!!message) {
+        logger.info('Cleaning up message ' + message.Body.id);
+        deferreds.push(deleteMessageFromQueue(message));
+    }
+
+    if (!!imageSet) {
+        imageSet.inQueue = false;
+        deferreds.push(printManager.save(imageSet));
+    }
+
+    if (!!zipFile) {
+        logger.info('Deleting the temp zip file ' + zipFile);
+        filesUtil.deleteFile(zipFile);
+    }
+
+    return q.all(deferreds);
+}
+
+Consumer.prototype.cleanUp = cleanUp;
+
+/**
+ * Gets the message from the queue and checks if it is valid.
+ *
+ * @returns {*|promise}
+ */
+function getMessage() {
+    return sqs.getMessage(sqs.QUEUES.PRINT, {WaitTimeSeconds: config.sqs.waitTime}).
+        then(function(messages) {
+            if (!!messages[0].Body && !!messages[0].Body.id) {
+                return messages[0];
+            } else {
+                throw 'No valid messages on the queue';
+            }
+        }).
+        fail(function(err) {
+            throw err;
+        });
+}
+
+Consumer.prototype.getMessage = getMessage;
+
+/**
+ * Gets the printable image set from the database.
+ *
+ * @param id
+ * @returns {*}
+ */
+function getImageSet(id) {
+    return printManager.find({criteria: {_id: id}}).
+        then(function(imageSet) {
+            if (imageSet !== null) {
+                logger.info('Successfully found image set: ' + imageSet._id);
+                return imageSet;
+            } else {
+                throw 'Could not find an image set for the id :' + id;
+            }
+        });
+}
+
+/**
+ * Gets the user from the database.
+ *
+ * @param id
+ * @returns {*}
+ */
+function getUser(id) {
+    return userManager.find({criteria: {_id: id}}).
+        then(function(user) {
+            if (user !== null) {
+                logger.info('Successfully found the image set user: ' + user.getUsername());
+                return user;
+            } else {
+                throw 'Could not find a user for the id :' + id;
+            }
+        });
+}
+
+/**
+ * Save the passed file to S3
+ *
+ * @param file
+ * @param dir
+ * @returns {file}
+ */
+function saveZipToS3(file, dir) {
     logger.info('Saving file ' + file + ' to S3');
 
     var filename = config.s3.folder + '/' + dir + '/' + path.basename(file);
@@ -154,7 +176,9 @@ Consumer.prototype.saveFileToS3 = function(file, dir) {
         key: filename,
         acl: 'public-read'
     });
-};
+}
+
+Consumer.prototype.saveZipToS3 = saveZipToS3;
 
 /**
  * Saves all images from an image set in a local temp directory.
@@ -163,7 +187,7 @@ Consumer.prototype.saveFileToS3 = function(file, dir) {
  * @param imageSet
  * @returns {promise|*|Q.promise}
  */
-Consumer.prototype.saveFiles = function(user, imageSet) {
+function saveImages(user, imageSet) {
     var deferred = q.defer();
     var imagesDeferred = [];
     var imageSets = imageSet.images;
@@ -205,7 +229,9 @@ Consumer.prototype.saveFiles = function(user, imageSet) {
     });
 
     return deferred.promise;
-};
+}
+
+Consumer.prototype.saveImages = saveImages;
 
 /**
  * Saves all images from an image set locally and then zips them up.
@@ -216,28 +242,29 @@ Consumer.prototype.saveFiles = function(user, imageSet) {
  * @param imageSet
  * @returns {promise|*|Q.promise}
  */
-Consumer.prototype.saveFilesAndZip = function(user, imageSet) {
-    var deferred = q.defer();
+function saveImagesAndZip(user, imageSet) {
     var userDir = getUserDirectory(user);
 
-    this.saveFiles(user, imageSet).then((function(localImages) {
-        if (localImages.length > 0) {
-            this.zipFiles(user, imageSet, localImages).
-                then(function(savedZipFile) {
-                    filesUtil.deleteFromTempDirectory(userDir);
-                    deferred.resolve(savedZipFile);
-                }).
-                fail(function(err) {
-                    logger.error(err);
-                });
-        } else {
-            filesUtil.deleteFromTempDirectory(userDir);
-            deferred.resolve();
-        }
-    }).bind(this));
+    return saveImages(user, imageSet).
+        then(function(localImages) {
+            if (localImages.length > 0) {
+                return zipFiles(user, imageSet, localImages).
+                    then(function(savedZipFile) {
+                        filesUtil.deleteFromTempDirectory(userDir);
+                        return savedZipFile;
+                    }).
+                    fail(function(err) {
+                        throw err;
+                    });
+            } else {
+                imageSet.isPrinted = true;
+                filesUtil.deleteFromTempDirectory(userDir);
+                throw 'No images in this set';
+            }
+        });
+}
 
-    return deferred.promise;
-};
+Consumer.prototype.saveImagesAndZip = saveImagesAndZip;
 
 /**
  * Generates a readme.txt with address, links and images.
@@ -245,7 +272,7 @@ Consumer.prototype.saveFilesAndZip = function(user, imageSet) {
  * @param user
  * @param imageSet
  */
-Consumer.prototype.getReadMeForPrintableImageSet = function(user, imageSet) {
+function getReadMeForPrintableImageSet(user, imageSet) {
     var filename = user.getUsername() + '-readme';
     var dir = user.getUsername();
 
@@ -256,8 +283,11 @@ Consumer.prototype.getReadMeForPrintableImageSet = function(user, imageSet) {
     text += moment(imageSet.endDate).format('DD-MM-YYYY') + lineEnd;
     text += formatUser(setUser);
     text += formatAddress(setUser);
+
     return filesUtil.createTextFile(text, filename, dir);
-};
+}
+
+Consumer.prototype.getReadMeForPrintableImageSet = getReadMeForPrintableImageSet;
 
 /**
  * Sends an email to the configured printer.
@@ -266,7 +296,7 @@ Consumer.prototype.getReadMeForPrintableImageSet = function(user, imageSet) {
  * @param imageSet
  * @returns {promise|*|q.promise|*}
  */
-Consumer.prototype.sendEmailToPrinter = function(user, imageSet) {
+function sendToPrinter(user, imageSet) {
     var deferred = q.defer();
 
     if (!!config.printer.sendEmail && config.printer.sendEmail !== 'false') {
@@ -298,7 +328,9 @@ Consumer.prototype.sendEmailToPrinter = function(user, imageSet) {
     }
 
     return deferred;
-};
+}
+
+Consumer.prototype.sendToPrinter = sendToPrinter;
 
 /**
  * Zips up the past files.
@@ -310,21 +342,21 @@ Consumer.prototype.sendEmailToPrinter = function(user, imageSet) {
  * @param localImages
  * @returns {*}
  */
-Consumer.prototype.zipFiles = function(user, imageSet, localImages) {
+function zipFiles(user, imageSet, localImages) {
     logger.info('Zipping ' + localImages.length + ' images for ' + user.getUsername());
 
     var filename = formatFileName(user, imageSet);
     var files = localImages || [];
 
     //add read me to zip
-    var readMe = this.getReadMeForPrintableImageSet(user, imageSet);
+    var readMe = getReadMeForPrintableImageSet(user, imageSet);
     files.push({
         filepath: readMe,
         name: path.basename(readMe)
     });
 
     return filesUtil.zipFiles(files, filename);
-};
+}
 
 /**
  * Tracks the event

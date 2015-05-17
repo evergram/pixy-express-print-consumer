@@ -4,9 +4,9 @@
 
 var _ = require('lodash');
 var config = require('evergram-common').config;
-var development = require('./env/development');
-var test = require('./env/test');
-var production = require('./env/production');
+var devConfig = require('./env/development');
+var testConfig = require('./env/test');
+var prodConfig = require('./env/production');
 
 /**
  * Expose
@@ -14,12 +14,12 @@ var production = require('./env/production');
 
 function Config() {
     var localConfig = {
-        development: development,
-        test: test,
-        production: production
+        development: devConfig,
+        test: testConfig,
+        production: prodConfig
     }[process.env.NODE_ENV || 'development'];
 
     return _.merge(localConfig, config);
 }
 
-module.exports = exports = new Config;
+module.exports = exports = new Config();

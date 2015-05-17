@@ -4,7 +4,7 @@
 
 module.exports = {
     printer: {
-        sendEmail: true,
+        sendEmail: false,
         emailTo: process.env.PRINT_TO_EMAIL || 'hello@evergram.co',
         emailFrom: process.env.PRINT_FROM_EMAIL || 'hello@evergram.co'
     },
@@ -13,7 +13,7 @@ module.exports = {
     },
     sqs: {
         //seconds
-        waitTime: 20
+        waitTime: 3
     },
 
     //seconds
