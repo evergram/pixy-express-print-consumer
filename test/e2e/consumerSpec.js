@@ -68,6 +68,8 @@ describe('Print Consumer', function() {
                     then(function(newImageSet) {
                         //ensure the image set printed flag is true
                         should(newImageSet.isPrinted).be.true;
+                        should(newImageSet.inQueue).be.false;
+                        should(newImageSet.zipFile).not.be.empty;
 
                         //assert that zip was saved to s3
                         should(s3.create.calledOnce).be.true;
