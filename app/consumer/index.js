@@ -22,6 +22,8 @@ var logger = common.utils.logger;
 /**
  * A consumer that handles all of the consumers
  *
+ * //TODO we should probably split this up into more services so they can be unit tested.
+ *
  * @constructor
  */
 function Consumer() {
@@ -198,7 +200,7 @@ function saveImages(user, imageSet) {
 
     _.forEach(imageSets, function(images, service) {
         if (images.length > 0 && !!user[service]) {
-            //var filename = formatFileName(user, imageSet) + '-';
+            //var filename = getZipFileName(user, imageSet) + '-';
 
             _.forEach(images, function(image) {
                 var imgDeferred = q.defer();
@@ -345,7 +347,7 @@ Consumer.prototype.sendToPrinter = sendToPrinter;
 function zipFiles(user, imageSet, localImages) {
     logger.info('Zipping ' + localImages.length + ' images for ' + user.getUsername());
 
-    var filename = formatFileName(user, imageSet);
+    var filename = getZipFileName(user, imageSet);
     var files = localImages || [];
 
     //add read me to zip
@@ -415,6 +417,12 @@ function formatAddress(user, lineEnd) {
     return text;
 }
 
+function getS3ZipFilePath(user, imageSet) {
+    return getUserDirectory(user) + '/' + getZipFileName(user, imageSet);
+}
+
+Consumer.prototype.getS3ZipFilePath = getS3ZipFilePath;
+
 /**
  * Gets a nicely formatted file name
  *
@@ -422,13 +430,15 @@ function formatAddress(user, lineEnd) {
  * @param imageSet
  * @returns {string}
  */
-function formatFileName(user, imageSet) {
+function getZipFileName(user, imageSet) {
     return user.getUsername() +
         '-' +
         moment(imageSet.startDate).format('YYYY-MM-DD') +
         '-to-' +
         moment(imageSet.endDate).format('YYYY-MM-DD');
 }
+
+Consumer.prototype.getZipFileName = getZipFileName;
 
 /**
  * @param user
@@ -446,8 +456,10 @@ function legacyFormatFileName(user, imageSrc) {
  * @returns {string}
  */
 function getUserDirectory(user) {
-    return user.getUsername() + '/';
+    return user.getUsername();
 }
+
+Consumer.prototype.getUserDirectory = getUserDirectory;
 
 /**
  * Convenience function to delete a message from the SQS.
