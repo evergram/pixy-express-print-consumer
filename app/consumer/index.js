@@ -6,6 +6,8 @@ var _ = require('lodash');
 var moment = require('moment');
 var q = require('q');
 var path = require('path');
+var fs = require('fs');
+var Jsftp = require('jsftp');
 var common = require('evergram-common');
 var config = require('../config');
 var trackingManager = require('../tracking');
@@ -67,7 +69,7 @@ Consumer.prototype.consume = function() {
             //track
             trackPrintedImageSet(currentUser, currentImageSet);
 
-            return sendToPrinter(currentUser, currentImageSet);
+            return sendToPrinter(currentUser, currentImageSet, currentZipFile);
         }).
         finally(function() {
             return cleanUp(currentMessage, currentImageSet, currentZipFile);
@@ -225,10 +227,11 @@ function saveImages(user, imageSet) {
         }
     });
 
-    q.all(imagesDeferred).then(function() {
-        logger.info('Found ' + localImages.length + ' images for ' + user.getUsername());
-        deferred.resolve(localImages);
-    });
+    q.all(imagesDeferred).
+        then(function() {
+            logger.info('Found ' + localImages.length + ' images for ' + user.getUsername());
+            deferred.resolve(localImages);
+        });
 
     return deferred.promise;
 }
@@ -292,18 +295,104 @@ function getReadMeForPrintableImageSet(user, imageSet) {
 Consumer.prototype.getReadMeForPrintableImageSet = getReadMeForPrintableImageSet;
 
 /**
- * Sends an email to the configured printer.
+ * Sens to printer
  *
  * @param user
  * @param imageSet
  * @returns {promise|*|q.promise|*}
  */
-function sendToPrinter(user, imageSet) {
+function sendToPrinter(user, imageSet, zipFile) {
+    return q.all([
+        sendToPrinterEmail(user, imageSet),
+        sendToPrinterFtp(user, imageSet, zipFile)
+    ]);
+}
+
+Consumer.prototype.sendToPrinter = sendToPrinter;
+
+/**
+ * Sends images to printer via ftp
+ *
+ * @param user
+ * @param imageSet
+ */
+function sendToPrinterFtp(user, imageSet, zipFile) {
     var deferred = q.defer();
 
-    if (!!config.printer.sendEmail && config.printer.sendEmail !== 'false') {
-        var toEmail = config.printer.emailTo;
-        var fromEmail = config.printer.emailFrom;
+    if (!!config.printer.ftp.enabled && config.printer.ftp.enabled !== 'false') {
+        logger.info('Preparing to upload to ftp: ' + config.printer.ftp.host);
+
+        var ftp = new Jsftp({
+            host: config.printer.ftp.host,
+            user: config.printer.ftp.username,
+            pass: config.printer.ftp.password,
+            debugMode: true
+        });
+
+        //debugging
+        ftp.on('jsftp_debug', function(eventType, data) {
+            if (data) {
+                logger.info('FTP: ' + eventType, data);
+            } else {
+                logger.info('FTP: ' + eventType);
+            }
+        });
+
+        var filepath = getZipFileName(user, imageSet) + '.zip';
+
+        q.ninvoke(ftp.raw, 'cwd', config.printer.ftp.directory).
+            then(function() {
+                logger.info('FTP changed to directory: ' + config.printer.ftp.directory);
+                return q.ninvoke(ftp, 'put', fs.createReadStream(zipFile), filepath);
+            }).
+            then(function() {
+                logger.info('FTP upload complete for ' + user.getUsername() + ' with the file ' + filepath);
+                deferred.resolve();
+            }).
+            fail(function() {
+                //since directory is missing, we will try and create it.
+                logger.info('FTP missing directory: ' + config.printer.ftp.directory);
+                q.ninvoke(ftp.raw, 'mkd', config.printer.ftp.directory).
+                    then(function() {
+                        logger.info('FTP created to directory: ' + config.printer.ftp.directory);
+                        return q.ninvoke(ftp.raw, 'cwd', config.printer.ftp.directory);
+                    }).
+                    then(function() {
+                        logger.info('FTP changed directory: ' + config.printer.ftp.directory);
+                        return q.ninvoke(ftp, 'put', fs.createReadStream(zipFile), filepath);
+                    }).
+                    then(function() {
+                        logger.info('FTP upload complete for ' + user.getUsername() + ' with the file ' + filepath);
+                        deferred.resolve();
+                    }).
+                    fail(function(err) {
+                        logger.error('FTP failed for ' + user.getUsername() + ' with the file ' + filepath, err);
+                        deferred.reject(err);
+                    });
+            });
+    } else {
+        logger.info('FTP is disabled');
+        deferred.resolve();
+    }
+
+    return deferred.promise;
+}
+
+Consumer.prototype.sendToPrinterFtp = sendToPrinterFtp;
+
+/**
+ * Sends an email to the configured printer.
+ *
+ * @param user
+ * @param imageSet
+ * @returns {*}
+ */
+function sendToPrinterEmail(user, imageSet) {
+    var deferred = q.defer();
+
+    if (!!config.printer.email.enabled && config.printer.email.enabled !== 'false') {
+        var toEmail = config.printer.email.to;
+        var fromEmail = config.printer.email.from;
         var startDate = moment(imageSet.startDate).format('DD-MM-YYYY');
         var endDate = moment(imageSet.endDate).format('DD-MM-YYYY');
 
@@ -314,7 +403,7 @@ function sendToPrinter(user, imageSet) {
         message += formatUser(imageSet.user, '<br>');
         message += formatAddress(imageSet.user, '<br>') + '<br><br>';
         message += '<strong>Image set</strong>:<br>';
-        message += '<a href="' + imageSet.zipFile + '">' + imageSet.zipFile + '</a>';
+        message += '<a href=' + imageSet.zipFile + '>' + imageSet.zipFile + '</a>';
 
         logger.info('Sending email to ' + toEmail + ' from ' + fromEmail + ' for ' + user.getUsername());
 
@@ -329,10 +418,10 @@ function sendToPrinter(user, imageSet) {
         deferred.resolve();
     }
 
-    return deferred;
+    return deferred.promise;
 }
 
-Consumer.prototype.sendToPrinter = sendToPrinter;
+Consumer.prototype.sendToPrinterEmail = sendToPrinterEmail;
 
 /**
  * Zips up the past files.

@@ -4,9 +4,19 @@
 
 module.exports = {
     printer: {
-        sendEmail: false,
-        emailTo: 'josh@evergram.co',
-        emailFrom: 'hello@evergram.co'
+        email: {
+            enabled: true,
+            from: 'hello@evergram.co',
+            to: 'josh@evergram.co'
+        },
+        ftp: {
+            enabled: false,
+            directory: 'evergramco-dev',
+            host: 'ftp.test.com.au',
+            port: 21,
+            username: 'test',
+            password: 'test'
+        }
     },
     s3: {
         folder: 'user-images'

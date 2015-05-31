@@ -5,9 +5,19 @@ var crypto = require('crypto');
 
 module.exports = {
     printer: {
-        sendEmail: true,
-        emailTo: process.env.PRINT_TO_EMAIL || 'hello@evergram.co',
-        emailFrom: process.env.PRINT_FROM_EMAIL || 'hello@evergram.co'
+        email: {
+            enabled: true,
+            from: 'hello@evergram.co',
+            to: 'hello@evergram.co'
+        },
+        ftp: {
+            enabled: false,
+            directory: 'evergramco-test',
+            host: 'ftp.test.com.au',
+            port: 21,
+            username: 'test',
+            password: 'test'
+        }
     },
     s3: {
         //random dir

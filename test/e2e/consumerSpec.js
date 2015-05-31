@@ -43,6 +43,9 @@ describe('Print Consumer', function() {
         sinon.spy(sqs, 'deleteMessage');
         sinon.spy(printManager, 'save');
 
+        //mocks
+        //TODO ftp
+
         q.spread(
             [
                 createUser('user.json'),
@@ -88,6 +91,8 @@ describe('Print Consumer', function() {
 
                         //sqs message deleted
                         should(sqs.deleteMessage.calledOnce).be.true;
+
+                        //TODO enable ftp and test
 
                         done();
                     });

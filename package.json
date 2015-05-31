@@ -28,6 +28,7 @@
         "body-parser": "1.8.2",
         "evergram-common": "git+ssh://git@github.com:evergram/evergram-common.git#master",
         "express": "4.9.0",
+        "jsftp": "^1.5.2",
         "lodash": "^3.5.0",
         "method-override": "2.2.0",
         "moment": "^2.9.0",
