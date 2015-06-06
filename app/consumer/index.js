@@ -340,35 +340,14 @@ function sendToPrinterFtp(user, imageSet, zipFile) {
 
         var filepath = getZipFileName(user, imageSet) + '.zip';
 
-        q.ninvoke(ftp.raw, 'cwd', config.printer.ftp.directory).
-            then(function() {
-                logger.info('FTP changed to directory: ' + config.printer.ftp.directory);
-                return q.ninvoke(ftp, 'put', fs.createReadStream(zipFile), filepath);
-            }).
+        q.ninvoke(ftp, 'put', fs.createReadStream(zipFile), filepath).
             then(function() {
                 logger.info('FTP upload complete for ' + user.getUsername() + ' with the file ' + filepath);
                 deferred.resolve();
             }).
-            fail(function() {
-                //since directory is missing, we will try and create it.
-                logger.info('FTP missing directory: ' + config.printer.ftp.directory);
-                q.ninvoke(ftp.raw, 'mkd', config.printer.ftp.directory).
-                    then(function() {
-                        logger.info('FTP created to directory: ' + config.printer.ftp.directory);
-                        return q.ninvoke(ftp.raw, 'cwd', config.printer.ftp.directory);
-                    }).
-                    then(function() {
-                        logger.info('FTP changed directory: ' + config.printer.ftp.directory);
-                        return q.ninvoke(ftp, 'put', fs.createReadStream(zipFile), filepath);
-                    }).
-                    then(function() {
-                        logger.info('FTP upload complete for ' + user.getUsername() + ' with the file ' + filepath);
-                        deferred.resolve();
-                    }).
-                    fail(function(err) {
-                        logger.error('FTP failed for ' + user.getUsername() + ' with the file ' + filepath, err);
-                        deferred.reject(err);
-                    });
+            fail(function(err) {
+                logger.error('FTP failed for ' + user.getUsername() + ' with the file ' + filepath, err);
+                deferred.reject(err);
             });
     } else {
         logger.info('FTP is disabled');

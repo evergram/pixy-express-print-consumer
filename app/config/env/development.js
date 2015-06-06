@@ -11,7 +11,6 @@ module.exports = {
         },
         ftp: {
             enabled: false,
-            directory: 'evergramco-dev',
             host: 'ftp.test.com.au',
             port: 21,
             username: 'test',

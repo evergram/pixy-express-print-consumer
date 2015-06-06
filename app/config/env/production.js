@@ -11,7 +11,6 @@ module.exports = {
         },
         ftp: {
             enabled: process.env.PRINTER_FTP_ENABLED,
-            directory: process.env.PRINTER_FTP_DIRECTORY || 'evergramco',
             host: process.env.PRINTER_FTP_HOST,
             port: 21,
             username: process.env.PRINTER_FTP_USERNAME,
