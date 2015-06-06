@@ -4,9 +4,18 @@
 
 module.exports = {
     printer: {
-        sendEmail: process.env.PRINTER_SEND_EMAIL,
-        emailTo: process.env.PRINTER_TO_EMAIL || 'hello@evergram.co',
-        emailFrom: process.env.PRINTER_FROM_EMAIL || 'hello@evergram.co'
+        email: {
+            enabled: process.env.PRINTER_EMAIL_ENABLED,
+            from: process.env.PRINTER_EMAIL_FROM || 'hello@evergram.co',
+            to: process.env.PRINTER_EMAIL_TO || 'hello@evergram.co'
+        },
+        ftp: {
+            enabled: process.env.PRINTER_FTP_ENABLED,
+            host: process.env.PRINTER_FTP_HOST,
+            port: 21,
+            username: process.env.PRINTER_FTP_USERNAME,
+            password: process.env.PRINTER_FTP_PASSWORD
+        }
     },
     s3: {
         folder: process.env.S3_FOLDER || 'user-images'

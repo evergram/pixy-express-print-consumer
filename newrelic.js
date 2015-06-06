@@ -22,6 +22,17 @@ exports.config = {
          */
         level: 'trace'
     },
-    enabled: !!process.env.NEW_RELIC_LICENSE_KEY,
-    tracer_enabled: !!process.env.NEW_RELIC_LICENSE_KEY
+    agent_enabled: !!process.env.NEW_RELIC_LICENSE_KEY,
+    error_collector: {
+        enabled: !!process.env.NEW_RELIC_LICENSE_KEY
+    },
+    transaction_tracer: {
+        enabled: !!process.env.NEW_RELIC_LICENSE_KEY
+    },
+    transaction_events: {
+        enabled: !!process.env.NEW_RELIC_LICENSE_KEY
+    },
+    error_collector: {
+        enabled: !!process.env.NEW_RELIC_LICENSE_KEY
+    }
 }

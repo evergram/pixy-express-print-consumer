@@ -1,22 +1,33 @@
 /**
  * Expose
  */
+var crypto = require('crypto');
 
 module.exports = {
     printer: {
-        sendEmail: true,
-        emailTo: process.env.PRINT_TO_EMAIL || 'hello@evergram.co',
-        emailFrom: process.env.PRINT_FROM_EMAIL || 'hello@evergram.co'
+        email: {
+            enabled: true,
+            from: 'hello@evergram.co',
+            to: 'hello@evergram.co'
+        },
+        ftp: {
+            enabled: false,
+            host: 'ftp.test.com.au',
+            port: 21,
+            username: 'test',
+            password: 'test'
+        }
     },
     s3: {
-        folder: 'user-images'
+        //random dir
+        folder: 'user-images/' + crypto.randomBytes(Math.ceil(5 / 2)).toString('hex').slice(0, 5)
     },
     sqs: {
         //seconds
-        waitTime: 20
+        waitTime: 3
     },
 
     //seconds
     retryWaitTime: 60,
-    track: false
+    track: true
 };
