@@ -1,3 +1,5 @@
+'use strict';
+
 /**
  * @author Josh Stuart <joshstuartx@gmail.com>.
  */
@@ -13,7 +15,6 @@ var config = require('../config');
 var trackingManager = require('../tracking');
 var s3 = common.aws.s3;
 var s3Bucket = common.config.aws.s3.bucket;
-var sqs = common.aws.sqs;
 var emailManager = common.email.manager;
 var imageManager = common.image.manager;
 var printManager = common.print.manager;
@@ -31,8 +32,7 @@ var logger = common.utils.logger;
 function Consumer() {
 }
 
-Consumer.prototype.consume = function() {
-    var currentMessage;
+Consumer.prototype.consume = function(message) {
     var currentImageSet;
     var currentUser;
     var currentZipFile;
@@ -40,13 +40,7 @@ Consumer.prototype.consume = function() {
     /**
      * Query SQS to get a message
      */
-    return getMessage().
-        then(function(message) {
-            currentMessage = message;
-            var id = message.Body.id;
-
-            return getImageSet(id);
-        }).
+    return getImageSet(message.data.id).
         then(function(imageSet) {
             currentImageSet = imageSet;
 
@@ -72,7 +66,7 @@ Consumer.prototype.consume = function() {
             return sendToPrinter(currentUser, currentImageSet, currentZipFile);
         }).
         finally(function() {
-            return cleanUp(currentMessage, currentImageSet, currentZipFile);
+            return cleanUp(currentImageSet, currentZipFile);
         });
 };
 
@@ -84,13 +78,8 @@ Consumer.prototype.consume = function() {
  * @param zipFile
  * @returns {*}
  */
-function cleanUp(message, imageSet, zipFile) {
+function cleanUp(imageSet, zipFile) {
     var deferreds = [];
-
-    if (!!message) {
-        logger.info('Cleaning up message ' + message.Body.id);
-        deferreds.push(deleteMessageFromQueue(message));
-    }
 
     if (!!imageSet) {
         imageSet.inQueue = false;
@@ -106,27 +95,6 @@ function cleanUp(message, imageSet, zipFile) {
 }
 
 Consumer.prototype.cleanUp = cleanUp;
-
-/**
- * Gets the message from the queue and checks if it is valid.
- *
- * @returns {*|promise}
- */
-function getMessage() {
-    return sqs.getMessage(sqs.QUEUES.PRINT, {WaitTimeSeconds: config.sqs.waitTime}).
-        then(function(messages) {
-            if (!!messages[0].Body && !!messages[0].Body.id) {
-                return messages[0];
-            } else {
-                throw 'No valid messages on the queue';
-            }
-        }).
-        fail(function(err) {
-            throw err;
-        });
-}
-
-Consumer.prototype.getMessage = getMessage;
 
 /**
  * Gets the printable image set from the database.
@@ -528,16 +496,6 @@ function getUserDirectory(user) {
 }
 
 Consumer.prototype.getUserDirectory = getUserDirectory;
-
-/**
- * Convenience function to delete a message from the SQS.
- *
- * @param result
- * @returns {*}
- */
-function deleteMessageFromQueue(result) {
-    return sqs.deleteMessage(sqs.QUEUES.PRINT, result);
-}
 
 /**
  * Expose

@@ -1,43 +1,65 @@
+'use strict';
+
 /**
  * Module dependencies.
  */
 
-var _ = require('lodash');
 var common = require('evergram-common');
 var newrelic = require('newrelic');
 var logger = common.utils.logger;
-var retryWaitTime = require('./config').retryWaitTime * 1000;
+var config = require('./config');
 var consumer = require('./consumer');
+var Queue = require('slipstream');
+var Sqs = require('slipstream-sqs');
+
+//watch for kill/shutdown
+process.on('SIGINT', function() {
+    logger.warning('Shutting down');
+});
 
 //init db
 common.db.connect();
 
-function run() {
-    logger.info('Checking print queue');
-    try {
-        consumer.consume().then(newrelic.createBackgroundTransaction('jobs:process-queue', function(message) {
-            newrelic.endTransaction();
-            if (!_.isEmpty(message)) {
-                logger.info(message);
-            }
+//create queue consumer
+var queue = new Queue({
+    batchSize: 10,
+    shutdownMaxWait: 300 * 1000,
+    shutdownRetryWait: 5 * 1000,
+    provider: new Sqs({
+        region: config.aws.region,
+        accessKeyId: config.aws.accessKeyId,
+        secretAccessKey: config.aws.secretAccessKey,
+        queueUrl: config.aws.sqs.instagram.url,
+        visibilityTimeout: config.sqs.visibilityTime,
+        waitTimeSeconds: config.sqs.waitTime
+    })
+});
 
-            logger.info('Completed checking print queue');
-            logger.info('Waiting ' + (retryWaitTime / 1000) + ' seconds before next check');
-            setTimeout(run, retryWaitTime);
-        })).fail(function(err) {
-            newrelic.endTransaction();
-            if (!_.isEmpty(err)) {
-                logger.info(err);
-            }
+queue.on(queue.EVENTS.ERROR, function(err) {
+    logger.error(err);
+});
 
-            logger.info('Waiting ' + (retryWaitTime / 1000) + ' seconds before next check');
-            setTimeout(run, retryWaitTime);
-        }).done();
-    } catch (err) {
-        setTimeout(run, retryWaitTime);
-        logger.error(err);
-    }
-}
+queue.on(queue.EVENTS.QUEUE_PROCESSED, function() {
+    logger.info('Queue processed');
+});
+
+queue.on(queue.EVENTS.MESSAGE_RECEIVED,
+    newrelic.createBackgroundTransaction('message:process', function(message, done) {
+        logger.info('Received message');
+
+        consumer.consume(message).
+            then(function() {
+                logger.info('Completed processing message for user ' + message.data.id);
+            }).
+            fail(function(err) {
+                logger.error(err);
+            }).
+            finally(function() {
+                newrelic.endTransaction();
+                done();
+            });
+    }));
 
 //kick off the process
-run();
+logger.info('Started processing queue.');
+queue.process();

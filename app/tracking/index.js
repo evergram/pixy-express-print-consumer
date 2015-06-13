@@ -1,3 +1,5 @@
+'use strict';
+
 /**
  * @author Josh Stuart <joshstuartx@gmail.com>.
  */
@@ -24,29 +26,33 @@ TrackingManager.prototype.trackPrintedImageSet = function(user, imageSet) {
     var owned = 0;
     var other = 0;
 
-    _.forEach(imageSet.images, function(images) {
-        _.forEach(images, function(image) {
-            total++;
-            if (image.isOwner) {
-                owned++;
-            } else {
-                other++;
-            }
+    if (imageSet.images.length > 0) {
+        _.forEach(imageSet.images, function(images) {
+            _.forEach(images, function(image) {
+                total++;
+                if (image.isOwner) {
+                    owned++;
+                } else {
+                    other++;
+                }
+            });
         });
-    });
 
-    logger.info('Tracking ' + event + ' for ' + user.getUsername());
+        logger.info('Tracking ' + event + ' for ' + user.getUsername());
 
-    return trackingManager.trackEvent(user, event, {
-        imageSetId: imageSet._id.toString(),
-        photoCount: total,
-        ownPhotoCount: owned,
-        friendsPhotoCount: other,
-        period: imageSet.period,
-        startDate: moment(imageSet.startDate).toDate(),
-        endDate: moment(imageSet.endDate).toDate(),
-        shippedOn: moment(imageSet.endDate).toDate()
-    }, moment(imageSet.endDate).toDate());
+        return trackingManager.trackEvent(user, event, {
+            imageSetId: imageSet._id.toString(),
+            photoCount: total,
+            ownPhotoCount: owned,
+            friendsPhotoCount: other,
+            period: imageSet.period,
+            startDate: moment(imageSet.startDate).toDate(),
+            endDate: moment(imageSet.endDate).toDate(),
+            shippedOn: moment(imageSet.endDate).toDate()
+        }, moment(imageSet.endDate).toDate());
+    } else {
+        logger.info(user.getUsername() + ' has no images to track for the period ' + imageSet.period);
+    }
 };
 
 /**
