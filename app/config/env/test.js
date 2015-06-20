@@ -1,3 +1,5 @@
+'use strict';
+
 /**
  * Expose
  */
@@ -24,10 +26,8 @@ module.exports = {
     },
     sqs: {
         //seconds
-        waitTime: 3
+        waitTime: 20,
+        visibilityTime: 120
     },
-
-    //seconds
-    retryWaitTime: 60,
     track: true
 };

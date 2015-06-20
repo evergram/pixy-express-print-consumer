@@ -10,7 +10,7 @@ var printManager = common.print.manager;
 var emailManager = common.email.manager;
 var filesUtil = common.utils.files;
 var s3 = common.aws.s3;
-var sqs = common.aws.sqs;
+var Message = require('slipstream-message');
 
 //connect db
 common.db.connect();
@@ -24,7 +24,6 @@ var consumer = require('../../app/consumer');
 var FIXTURE_PATH = __dirname + '/../fixtures/';
 
 describe('Print Consumer', function() {
-    var currentMessage;
     var currentZipFilePath;
     var currentZipDirPath;
 
@@ -33,14 +32,13 @@ describe('Print Consumer', function() {
      * due to the nature of FIFO queues. It will do for now, but maybe we should mock the queues.
      */
     it('should get a message from a print queue then save images, zip them, and send to printer', function(done) {
-        this.timeout(15000);
+        this.timeout(25000);
 
         //spies
         sinon.spy(emailManager, 'send');
         sinon.spy(trackingManager, 'trackPrintedImageSet');
         sinon.spy(s3, 'create');
         sinon.spy(filesUtil, 'deleteFile');
-        sinon.spy(sqs, 'deleteMessage');
         sinon.spy(printManager, 'save');
 
         //mocks
@@ -56,15 +54,9 @@ describe('Print Consumer', function() {
                 currentZipDirPath = consumer.getUserDirectory(user);
 
                 /**
-                 * Put a message on the queue
+                 * Consume
                  */
-                return sqs.createMessage(sqs.QUEUES.PRINT, '{"id": "' + imageSet._id + '"}').
-                    then(function() {
-                        /**
-                         * TEST consumer
-                         */
-                        return consumer.consume();
-                    }).
+                return consumer.consume(new Message('dummy-id', {id: imageSet._id})).
                     then(function() {
                         return getImageSet(imageSet._id);
                     }).
@@ -88,9 +80,6 @@ describe('Print Consumer', function() {
 
                         //temp files deleted
                         should(filesUtil.deleteFile.calledOnce).be.true;
-
-                        //sqs message deleted
-                        should(sqs.deleteMessage.calledOnce).be.true;
 
                         //TODO enable ftp and test
 
@@ -117,23 +106,11 @@ describe('Print Consumer', function() {
     });
 
     /**
-     * Clean up queues and s3
+     * Clean up
      */
     afterEach(function(done) {
-        this.timeout(10000);
-
-        var deferreds = [];
-
-        if (!!currentMessage) {
-            deferreds.push(sqs.deleteMessage(sqs.QUEUES.PRINT, currentMessage));
-        }
-
-        if (!!currentZipDirPath) {
-            //remove from s3
-            deferreds.push(deleteFromS3(currentZipDirPath));
-        }
-
-        q.all(deferreds).
+        this.timeout(15000);
+        deleteFromS3(currentZipDirPath).
             finally(function() {
                 done();
             });

@@ -1,3 +1,5 @@
+'use strict';
+
 /**
  * Expose
  */
@@ -22,10 +24,8 @@ module.exports = {
     },
     sqs: {
         //seconds
-        waitTime: process.env.SQS_WAIT_TIME || 20
+        waitTime: process.env.SQS_WAIT_TIME || 20,
+        visibilityTime: process.env.SQS_VISIBILITY_TIME || 600
     },
-
-    //seconds
-    retryWaitTime: process.env.RETRY_WAIT_TIME || 60,
     track: process.env.TRACK_PRINTING || true
 };
