@@ -29,7 +29,7 @@ var queue = new Queue({
         region: config.aws.region,
         accessKeyId: config.aws.accessKeyId,
         secretAccessKey: config.aws.secretAccessKey,
-        queueUrl: config.aws.sqs.instagram.url,
+        queueUrl: config.aws.sqs.print.url,
         visibilityTimeout: config.sqs.visibilityTime,
         waitTimeSeconds: config.sqs.waitTime
     })
