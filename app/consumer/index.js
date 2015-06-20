@@ -57,8 +57,14 @@ Consumer.prototype.consume = function(message) {
             return saveZipToS3(zipFile, currentUser.getUsername());
         }).
         then(function(s3File) {
+            //save the file url
+            currentImageSet.zipFile = decodeURIComponent(s3File.Location);
+
+            //stamp the user
+            currentImageSet.user = currentUser;
+
+            //finalize the set
             currentImageSet.isPrinted = true;
-            currentImageSet.zipFile = s3File.Location;
 
             //track
             trackPrintedImageSet(currentUser, currentImageSet);
@@ -350,7 +356,7 @@ function sendToPrinterEmail(user, imageSet) {
         message += formatUser(imageSet.user, '<br>');
         message += formatAddress(imageSet.user, '<br>') + '<br><br>';
         message += '<strong>Image set</strong>:<br>';
-        message += '<a href=' + imageSet.zipFile + '>' + imageSet.zipFile + '</a>';
+        message += '<a href="' + imageSet.zipFile + '">' + imageSet.zipFile + '</a>';
 
         logger.info('Sending email to ' + toEmail + ' from ' + fromEmail + ' for ' + user.getUsername());
 
