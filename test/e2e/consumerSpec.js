@@ -8,6 +8,7 @@ var PrintableImageSet = common.models.PrintableImageSet;
 var userManager = common.user.manager;
 var printManager = common.print.manager;
 var emailManager = common.email.manager;
+var trackingManager = common.tracking.manager;
 var filesUtil = common.utils.files;
 var s3 = common.aws.s3;
 var Message = require('slipstream-message');
@@ -17,7 +18,7 @@ common.db.connect();
 
 //local dependencies
 var config = require('../../app/config');
-var trackingManager = require('../../app/tracking');
+var printTrackingManager = require('../../app/tracking');
 
 //test object
 var consumer = require('../../app/consumer');
@@ -36,7 +37,8 @@ describe('Print Consumer', function() {
 
         //spies
         sinon.spy(emailManager, 'send');
-        sinon.spy(trackingManager, 'trackPrintedImageSet');
+        sinon.spy(printTrackingManager, 'trackPrintedImageSet');
+        sinon.spy(trackingManager, 'trackEvent');
         sinon.spy(s3, 'create');
         sinon.spy(filesUtil, 'deleteFile');
         sinon.spy(printManager, 'save');
@@ -73,7 +75,8 @@ describe('Print Consumer', function() {
                         should(emailManager.send.calledOnce).be.true;
 
                         //assert tracking event was called
-                        should(trackingManager.trackPrintedImageSet.calledOnce).be.true;
+                        should(printTrackingManager.trackPrintedImageSet.calledOnce).be.true;
+                        should(trackingManager.trackEvent.calledOnce).be.true;
 
                         //image set was saved (note it's called twice because once
                         should(printManager.save.calledTwice).be.true;
