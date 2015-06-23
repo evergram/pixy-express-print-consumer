@@ -26,18 +26,18 @@ TrackingManager.prototype.trackPrintedImageSet = function(user, imageSet) {
     var owned = 0;
     var other = 0;
 
-    if (imageSet.images.length > 0) {
-        _.forEach(imageSet.images, function(images) {
-            _.forEach(images, function(image) {
-                total++;
-                if (image.isOwner) {
-                    owned++;
-                } else {
-                    other++;
-                }
-            });
+    _.forEach(imageSet.images, function(images) {
+        _.forEach(images, function(image) {
+            total++;
+            if (image.isOwner) {
+                owned++;
+            } else {
+                other++;
+            }
         });
+    });
 
+    if (total > 0) {
         logger.info('Tracking ' + event + ' for ' + user.getUsername());
 
         return trackingManager.trackEvent(user, event, {
