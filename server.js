@@ -5,10 +5,16 @@
 process.env.TZ = 'UTC';
 
 require('newrelic');
-var app = require('./app');
+var http = require('http');
+var port = process.env.PORT || 8080;
 
-/**
- * Expose
- */
+//Create a server so we can do health checks
+var server = http.createServer(function(request, response) {
+    response.end('Alive');
+});
 
-module.exports = app;
+//Start the server and the app process
+server.listen(port, function() {
+    console.log('Server up');
+    require('./app');
+});
