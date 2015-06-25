@@ -49,6 +49,9 @@ Consumer.prototype.consume = function(message) {
         then(function(user) {
             currentUser = user;
 
+            //stamp the user on the image set
+            currentImageSet.user = currentUser;
+
             return saveImagesAndZip(currentUser, currentImageSet);
         }).
         then(function(zipFile) {
@@ -59,9 +62,6 @@ Consumer.prototype.consume = function(message) {
         then(function(s3File) {
             //save the file url
             currentImageSet.zipFile = decodeURIComponent(s3File.Location);
-
-            //stamp the user
-            currentImageSet.user = currentUser;
 
             //finalize the set
             currentImageSet.isPrinted = true;
@@ -127,7 +127,14 @@ function getImageSet(id) {
  * @returns {*}
  */
 function getUser(id) {
-    return userManager.find({criteria: {_id: id}}).
+    return userManager.
+        find({
+            criteria: {
+                _id: id,
+                active: true,
+                signupComplete: true
+            }
+        }).
         then(function(user) {
             if (user !== null) {
                 logger.info('Successfully found the image set user: ' + user.getUsername());
