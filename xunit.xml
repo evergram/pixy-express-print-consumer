@@ -1,3 +1,0 @@
-<testsuite name="Mocha Tests" tests="1" failures="0" errors="0" skipped="0" timestamp="Sat, 11 Jul 2015 03:15:00 GMT" time="5.071">
-<testcase classname="Print Consumer" name="should get a message from a print queue then save images, zip them, and send to printer" time="3.129"/>
-</testsuite>

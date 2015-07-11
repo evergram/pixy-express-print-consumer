@@ -2,5 +2,5 @@
 /tmp/
 *.iml
 *.log
-coverage
-testresults
+shippable
+xunit.xml

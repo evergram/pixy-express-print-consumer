@@ -11,12 +11,12 @@ services:
 
 # The path for Xunit to output test reports
 env:
-  - XUNIT_FILE=testresults/result.xml
+  - XUNIT_FILE=shippable/testresults/result.xml
 
 # Create directories for test and coverage reports
 before_script:
-  - mkdir -p testresults
-  - mkdir -p codecoverage
+  - mkdir -p shippable/testresults
+  - mkdir -p shippable/codecoverage
 
 # Running the tests
 script:
