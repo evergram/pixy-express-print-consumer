@@ -21,13 +21,13 @@
         "start": "NODE_ENV=development ./node_modules/.bin/nodemon server.js"
     },
     "dependencies": {
-        "evergram-common": "git+ssh://git@github.com:evergram/evergram-common.git#master",
+        "evergram-common": "git+ssh://git@github.com:crimsonronin/evergram-common.git#master",
         "http": "0.0.0",
         "jsftp": "^1.5.2",
         "lodash": "^3.5.0",
         "moment": "^2.9.0",
         "newrelic": "^1.18.3",
-        "q": "^1.2.0",
+        "q": "^1.4.1",
         "slipstream": "^0.1.0",
         "slipstream-sqs": "^1.0.0"
     },
