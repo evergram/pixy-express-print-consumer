@@ -66,13 +66,21 @@ Consumer.prototype.consume = function(message) {
             //finalize the set
             currentImageSet.isPrinted = true;
 
+            /**
+             * This is a hack for the time being that will allow us to upgrade users at a later date.
+             * //TODO Remove this once we have a better process in place.
+             */
+            if (isSimpleLimitPlan(currentUser)) {
+                currentUser.signupComplete = false;
+            }
+
             //track
             trackPrintedImageSet(currentUser, currentImageSet);
 
             return sendToPrinter(currentUser, currentImageSet, currentZipFile);
         }).
         finally(function() {
-            return cleanUp(currentImageSet, currentZipFile);
+            return cleanUp(currentUser, currentImageSet, currentZipFile);
         });
 };
 
@@ -84,8 +92,12 @@ Consumer.prototype.consume = function(message) {
  * @param zipFile
  * @returns {*}
  */
-function cleanUp(imageSet, zipFile) {
+function cleanUp(user, imageSet, zipFile) {
     var deferreds = [];
+
+    if (!!user) {
+        deferreds.push(userManager.update(user));
+    }
 
     if (!!imageSet) {
         imageSet.inQueue = false;
@@ -506,6 +518,15 @@ function legacyFormatFileName(user, imageSrc) {
  */
 function getUserDirectory(user) {
     return user.getUsername();
+}
+
+/**
+ * Tests if the current user has the simple limit plan.
+ * //TODO remove
+ * @param user
+ */
+function isSimpleLimitPlan(user) {
+    return new RegExp(config.plans.simpleLimit).test(user.billing.option.toUpperCase());
 }
 
 Consumer.prototype.getUserDirectory = getUserDirectory;

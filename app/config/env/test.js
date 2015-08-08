@@ -29,5 +29,8 @@ module.exports = {
         waitTime: 20,
         visibilityTime: 120
     },
+    plans: {
+        simpleLimit: '[a-zA-Z]+\\-LIMIT\\-([0-9]+)'
+    },
     track: true
 };
