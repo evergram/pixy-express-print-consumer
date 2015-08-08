@@ -1,0 +1,37 @@
+{
+    "_id": "5556e7abdf503b0405c825dd",
+    "updatedOn": "2015-05-29T21:49:53.000Z",
+    "createdOn": "2015-04-24T14:00:00.000Z",
+    "signupComplete": true,
+    "active": true,
+    "instagram": {
+        "id": "54717558",
+        "username": "joshystuart",
+        "media": 9,
+        "followers": 217,
+        "follows": 45,
+        "authToken": "54717558.2fd0517.155856cadf0141aca8c209b9a35a65eb"
+    },
+    "jobs": {
+        "instagram": {
+            "inQueue": false
+        }
+    },
+    "payments": [],
+    "billing": {
+        "stripeId": "cus_67dLlrQ36dUNvV",
+        "option": "TEST-LIMIT-1"
+    },
+    "address": {
+        "country": "Australia",
+        "postcode": "3067",
+        "state": "VIC",
+        "suburb": "Abbotsford",
+        "line2": "",
+        "line1": "112/88 Trenerry Crescent"
+    },
+    "email": "josh.stuart@zoopcommerce.com",
+    "firstName": "Josh",
+    "lastName": "Stuart",
+    "signupCompletedOn": "2015-04-24T14:00:00.000Z"
+}
