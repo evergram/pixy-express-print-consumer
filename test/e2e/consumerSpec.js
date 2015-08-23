@@ -38,7 +38,7 @@ describe('Print Consumer', function() {
         filesUtilSpy: sinon.spy(filesUtil, 'deleteFile'),
         printManagerSpy: sinon.spy(printManager, 'save'),
         userManagerSpy: sinon.spy(userManager, 'update')
-    }
+    };
 
     /**
      * This is an integration end to end test. At the moment if this test is run in parallel it will most likely fail

@@ -5,6 +5,9 @@
 process.env.TZ = 'UTC';
 
 require('newrelic');
+
+var common = require('evergram-common');
+var logger = common.utils.logger;
 var http = require('http');
 var port = process.env.PORT || 8080;
 
@@ -15,6 +18,13 @@ var server = http.createServer(function(request, response) {
 
 //Start the server and the app process
 server.listen(port, function() {
-    console.log('Server up');
+    logger.info('Server up');
     require('./app');
+});
+
+//catch uncaught exceptions and close the server to ensure opsworks restart
+process.on('uncaughtException', function(err) {
+    logger.error('Uncaught exception', err);
+    server.close();
+    process.exit();
 });
