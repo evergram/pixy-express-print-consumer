@@ -1,6 +1,6 @@
 #Evergram Print Consumer
 
-[![Shippable](https://img.shields.io/shippable/55c55c0239bd620c007ce87f.svg)](https://app.shippable.com/projects/55c55c0239bd620c007ce87f)
+[![Shippable](https://img.shields.io/shippable/557f6f2fedd7f2c05219275c.svg)](https://app.shippable.com/projects/557f6f2fedd7f2c05219275c)
 
 A service that communicates with a print SQS, retrieves the ready for print image sets, downloads the images, zips them up, uploads it to S3 and then emails an admin to handle the fulfillment.
 
