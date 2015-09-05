@@ -17,11 +17,11 @@
         "lint": "./node_modules/.bin/jshint ./app",
         "checkStyle": "./node_modules/.bin/jscs ./app",
         "pretest": "npm run-script lint && npm run-script checkStyle",
-        "test": "NODE_ENV=test ./node_modules/.bin/istanbul cover --dir shippable/coverage ./node_modules/.bin/_mocha -- --recursive --reporter spec-xunit-file -r should",
+        "test": "NODE_ENV=test ./node_modules/.bin/istanbul cover --dir shippable/codecoverage ./node_modules/.bin/_mocha -- --recursive --reporter spec-xunit-file -r should",
         "start": "NODE_ENV=development ./node_modules/.bin/nodemon server.js"
     },
     "dependencies": {
-        "evergram-common": "git+ssh://git@github.com:crimsonronin/evergram-common.git#master",
+        "evergram-common": "git+ssh://git@github.com:evergram/evergram-common.git#master",
         "http": "0.0.0",
         "jsftp": "^1.5.2",
         "lodash": "^3.5.0",
