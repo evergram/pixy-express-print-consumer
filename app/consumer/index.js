@@ -57,7 +57,7 @@ Consumer.prototype.consume = function(message) {
         then(function(zipFile) {
             currentZipFile = zipFile;
 
-            return saveZipToS3(zipFile, currentUser.getUsername());
+            return saveZipToS3(zipFile, currentUser, currentImageSet);
         }).
         then(function(s3File) {
             //save the file url
@@ -66,21 +66,13 @@ Consumer.prototype.consume = function(message) {
             //finalize the set
             currentImageSet.isPrinted = true;
 
-            /**
-             * This is a hack for the time being that will allow us to upgrade users at a later date.
-             * //TODO Remove this once we have a better process in place.
-             */
-            if (isSimpleLimitPlan(currentUser)) {
-                currentUser.signupComplete = false;
-            }
-
             //track
             trackPrintedImageSet(currentUser, currentImageSet);
 
             return sendToPrinter(currentUser, currentImageSet, currentZipFile);
         }).
         finally(function() {
-            return cleanUp(currentUser, currentImageSet, currentZipFile);
+            return cleanUp(currentImageSet, currentZipFile);
         });
 };
 
@@ -92,12 +84,8 @@ Consumer.prototype.consume = function(message) {
  * @param zipFile
  * @returns {*}
  */
-function cleanUp(user, imageSet, zipFile) {
+function cleanUp(imageSet, zipFile) {
     var deferreds = [];
-
-    if (!!user) {
-        deferreds.push(userManager.update(user));
-    }
 
     if (!!imageSet) {
         imageSet.inQueue = false;
@@ -164,10 +152,10 @@ function getUser(id) {
  * @param dir
  * @returns {file}
  */
-function saveZipToS3(file, dir) {
+function saveZipToS3(file, user, imageSet) {
     logger.info('Saving file ' + file + ' to S3');
 
-    var filename = config.s3.folder + '/' + dir + '/' + path.basename(file);
+    var filename = config.s3.folder + '/' + getS3ZipFilePath(user, imageSet) + '/' + path.basename(file);
     return s3.create(file, {
         bucket: s3Bucket,
         key: filename,
@@ -191,8 +179,6 @@ function saveImages(user, imageSet) {
     var localImages = [];
     var userDir = getUserDirectory(user);
 
-    logger.info('Saving images for ' + user.getUsername());
-
     _.forEach(imageSets, function(images, service) {
         if (images.length > 0 && !!user[service]) {
             //var filename = getZipFileName(user, imageSet) + '-';
@@ -201,11 +187,14 @@ function saveImages(user, imageSet) {
                 var imgDeferred = q.defer();
                 imagesDeferred.push(imgDeferred.promise);
 
+                var printSize = image.metadata.printSize || common.config.print.sizes.SQUARE;  // if no print size defined, default to instagram.
+
                 //TODO change the legacy file name when we automate the printing
                 //var imgFileName = filename + i;
                 var imgFileName = legacyFormatFileName(user, image.src.raw);
-                imageManager.saveFromUrl(image.src.raw, imgFileName, userDir).
+                imageManager.saveFromUrl(image.src.raw, imgFileName, userDir + '/' + printSize).
                     then(function(savedFilepath) {
+
                         /**
                          * Add the saved file to all local images
                          */
@@ -215,6 +204,10 @@ function saveImages(user, imageSet) {
                         });
 
                         imgDeferred.resolve();
+                    })
+                    .fail( function(err) {
+                        logger.err('Error saving image: ' + err);
+                        imgDeferred.reject();
                     });
             });
         }
@@ -279,7 +272,7 @@ function getReadMeForPrintableImageSet(user, imageSet) {
     var lineEnd = '\n';
 
     text += moment(imageSet.endDate).format('DD-MM-YYYY') + lineEnd;
-    text += formatUser(setUser);
+    text += formatUser('readme', setUser);
     text += formatAddress(setUser);
 
     return filesUtil.createTextFile(text, filename, dir);
@@ -372,7 +365,7 @@ function sendToPrinterEmail(user, imageSet) {
         var message = 'Images are ready to print for ' + user.getUsername() + ' for the period from ' + startDate +
             ' to ' + endDate + '<br><br>';
 
-        message += formatUser(imageSet.user, '<br>');
+        message += formatUser('email',imageSet.user, '<br>');
         message += formatAddress(imageSet.user, '<br>') + '<br><br>';
         message += '<strong>Image set</strong>:<br>';
         message += '<a href="' + imageSet.zipFile + '">' + imageSet.zipFile + '</a>';
@@ -436,18 +429,24 @@ function trackPrintedImageSet(user, imageSet) {
 /**
  * Formats the user for the readme and email
  *
+ * @param type: either email or readme. Defines the format returned
  * @param user
  * @param lineEnd
  * @returns {string}
  */
-function formatUser(user, lineEnd) {
+function formatUser(type, user, lineEnd) {
     var text = '';
     if (!lineEnd) {
         lineEnd = '\n';
     }
 
-    text += '@' + _.trim(user.instagram.username) + lineEnd;
-    text += _.trim(user.firstName) + ' ' + _.trim(user.lastName) + lineEnd;
+    if (type === 'email') {
+        //text += '@' + _.trim(user.instagram.username) + lineEnd;
+        text += _.trim(user.firstName) + ' ' + _.trim(user.lastName) + ' (ID: ' + user._id + ')' + lineEnd;
+    } else {
+        // must be readme
+        text += _.trim(user.firstName) + ' ' + _.trim(user.lastName) + lineEnd;
+    }
 
     return text;
 }
@@ -479,7 +478,12 @@ function formatAddress(user, lineEnd) {
 }
 
 function getS3ZipFilePath(user, imageSet) {
-    return getUserDirectory(user) + '/' + getZipFileName(user, imageSet);
+    return getUserDirectory(user) + '/' +
+        imageSet.period +
+        '-' +
+        moment(imageSet.startDate).format('YYYY-MM-DD') +
+        '-to-' +
+        moment(imageSet.endDate).format('YYYY-MM-DD');
 }
 
 Consumer.prototype.getS3ZipFilePath = getS3ZipFilePath;
@@ -518,15 +522,6 @@ function legacyFormatFileName(user, imageSrc) {
  */
 function getUserDirectory(user) {
     return user.getUsername();
-}
-
-/**
- * Tests if the current user has the simple limit plan.
- * //TODO remove
- * @param user
- */
-function isSimpleLimitPlan(user) {
-    return new RegExp(config.plans.simpleLimit).test(user.billing.option.toUpperCase());
 }
 
 Consumer.prototype.getUserDirectory = getUserDirectory;
