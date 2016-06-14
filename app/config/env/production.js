@@ -30,5 +30,9 @@ module.exports = {
     plans: {
         simpleLimit: '[a-zA-Z]+\\-LIMIT\\-([0-9]+)'
     },
-    track: process.env.TRACK_PRINTING || true
+    track: process.env.TRACK_PRINTING || true,
+    imgix: {
+        host: process.env.IMGIX_HOST,
+        secureToken: process.env.IMGIX_SECURE_TOKEN
+    }
 };

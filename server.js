@@ -9,7 +9,7 @@ require('newrelic');
 var common = require('evergram-common');
 var logger = common.utils.logger;
 var http = require('http');
-var port = process.env.PORT || 8080;
+var port = process.env.PORT || 8030;
 
 //Create a server so we can do health checks
 var server = http.createServer(function(request, response) {

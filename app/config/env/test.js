@@ -32,5 +32,9 @@ module.exports = {
     plans: {
         simpleLimit: '[a-zA-Z]+\\-LIMIT\\-([0-9]+)'
     },
-    track: true
+    track: true,
+    imgix: {
+        host: 'pixy.imgix.net',
+        secureToken: process.env.IMGIX_SECURE_TOKEN
+    }
 };
