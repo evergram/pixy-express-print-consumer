@@ -8,8 +8,10 @@ var _ = require('lodash');
 var moment = require('moment');
 var q = require('q');
 var path = require('path');
+var url = require('url')
 var fs = require('fs');
 var Jsftp = require('jsftp');
+var imgixClient = require('imgix-core-js');
 var common = require('evergram-common');
 var config = require('../config');
 var trackingManager = require('../tracking');
@@ -188,11 +190,24 @@ function saveImages(user, imageSet) {
                 imagesDeferred.push(imgDeferred.promise);
 
                 var printSize = image.metadata.printSize || common.config.print.sizes.SQUARE;  // if no print size defined, default to instagram.
+                var imageUrl;
+
+                if (printSize === common.config.print.sizes.SQUARE) {
+                    imageUrl = image.src.raw;
+                } else {
+                    // generate appropriate imgix url
+                    imageUrl = getImgixUrl(image.src.raw, image.metadata.images.standard_resolution.width, image.metadata.images.standard_resolution.height);
+
+                    if (imageUrl.indexOf('w=1200') > -1 && imageUrl.indexOf('h=1200') > -1) {
+                        // TODO: Hacky solution to make sure images that were re-sized to square end up in 4x4 folder. Should fix in consumer.
+                        printSize = common.config.print.sizes.SQUARE;
+                    }
+                }
 
                 //TODO change the legacy file name when we automate the printing
                 //var imgFileName = filename + i;
-                var imgFileName = legacyFormatFileName(user, image.src.raw);
-                imageManager.saveFromUrl(image.src.raw, imgFileName, userDir + '/' + printSize).
+                var imgFileName = legacyFormatFileName(user, imageUrl);
+                imageManager.saveFromUrl(imageUrl, imgFileName, userDir + '/' + printSize).
                     then(function(savedFilepath) {
 
                         /**
@@ -485,7 +500,6 @@ function getS3ZipFilePath(user, imageSet) {
         '-to-' +
         moment(imageSet.endDate).format('YYYY-MM-DD');
 }
-
 Consumer.prototype.getS3ZipFilePath = getS3ZipFilePath;
 
 /**
@@ -502,7 +516,6 @@ function getZipFileName(user, imageSet) {
         '-to-' +
         moment(imageSet.endDate).format('YYYY-MM-DD');
 }
-
 Consumer.prototype.getZipFileName = getZipFileName;
 
 /**
@@ -523,8 +536,88 @@ function legacyFormatFileName(user, imageSrc) {
 function getUserDirectory(user) {
     return user.getUsername();
 }
-
 Consumer.prototype.getUserDirectory = getUserDirectory;
+
+
+/**
+ * Builds Imgix url for image cropping
+ *
+ * @param {string} imageUrl - url of the image hosted on https://scontent.cdninstagram.com
+ * @param {string} width - width (in pixels) of the image
+ * @param {string} height - height (in pixels) of the image
+ * @returns {string} url
+ */
+function getImgixUrl(imageUrl, width, height) {
+    var imgPath;
+    var options = {};
+
+    imgPath = url.parse(imageUrl).pathname;
+    
+    // initialise Imgix client
+    var imgix = new imgixClient({
+      host: config.imgix.host,
+      secureURLToken: config.imgix.secureToken
+    });
+
+    // determine best crop based on image dimensions
+    //  - if 5x4 and up... crop faces.
+    //  - if below 5x4... treat as square so resize to fit with white letterbox.
+    //  - ### TODO: Might need 5x3 scaling (1.6ish?) to letterbox like square???
+    if (width > height) {
+        logger.info('### LANDSCAPE: Ratio - ' + width/height);
+        // LANDSCAPE
+        if (width/height >= 1.25) {
+            // crop for faces
+            options = {
+                w: 1800,
+                h: 1200,
+                fit: "crop",
+                crop: "faces"
+            }
+        } else {
+            // treat as square (fit=fill & bg=FFFFFF)
+            options = {
+                w: 1200,
+                h: 1200,
+                fit: "fill",
+                bg: "FFFFFF"
+            }
+        }
+    } else if (height > width) {
+        // PORTRAIT
+        if (height/width >= 1.25) {
+            logger.info('### PORTRAIT: Ratio - ' + height/width);
+            // crop for faces
+            options = {
+                w: 1200,
+                h: 1800,
+                fit: "crop",
+                crop: "faces"
+            }
+        } else {
+            // treat as square (fit=fill & bg=FFFFFF)
+            options = {
+                w: 1200,
+                h: 1200,
+                fit: "fill",
+                bg: "FFFFFF"
+            }
+        }
+    } else {
+        // SQUARE
+        //treat as square (fit=fill & bg=FFFFFF)
+        options = {
+            w: 1200,
+            h: 1200,
+            fit: "fill",
+            bg: "FFFFFF"
+        }
+    }
+
+    // get from imgix
+    return imgix.buildURL(imgPath, options);
+}
+
 
 /**
  * Expose
