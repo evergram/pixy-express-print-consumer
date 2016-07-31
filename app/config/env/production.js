@@ -5,6 +5,14 @@
  */
 
 module.exports = {
+    billing: {
+        stripe: {
+            secretAccessKey: process.env.STRIPE_KEY
+        },
+        plans: ["VALUE100", "PHOTOADDICT100", "UNLTD100SHIP"],  // list of subscription plans for billing
+        shippingDescription: "Shipping",
+        chargeDescription: "Photos [{{photoCount}}]"
+    },
     printer: {
         email: {
             enabled: process.env.PRINTER_EMAIL_ENABLED,
@@ -32,7 +40,10 @@ module.exports = {
     },
     track: process.env.TRACK_PRINTING || true,
     imgix: {
-        host: process.env.IMGIX_HOST,
+        hosts: {
+            facebook: process.env.IMGIX_HOST_FACEBOOK,
+            instagram: process.env.IMGIX_HOST_INSTAGRAM
+        },
         secureToken: process.env.IMGIX_SECURE_TOKEN
     }
 };

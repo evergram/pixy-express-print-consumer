@@ -30,7 +30,8 @@
     "newrelic": "^1.18.3",
     "q": "^1.4.1",
     "slipstream": "^0.1.0",
-    "slipstream-sqs": "^1.0.0"
+    "slipstream-sqs": "^1.0.0",
+    "stripe": "^4.9.0"
   },
   "devDependencies": {
     "istanbul": "^0.3.13",

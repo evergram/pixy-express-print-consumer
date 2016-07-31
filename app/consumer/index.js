@@ -23,6 +23,7 @@ var printManager = common.print.manager;
 var userManager = common.user.manager;
 var filesUtil = common.utils.files;
 var logger = common.utils.logger;
+var stripe = require("stripe")( config.billing.stripe.secretAccessKey );
 
 /**
  * A consumer that handles all of the consumers
@@ -72,6 +73,9 @@ Consumer.prototype.consume = function(message) {
             trackPrintedImageSet(currentUser, currentImageSet);
 
             return sendToPrinter(currentUser, currentImageSet, currentZipFile);
+        }).then(function() {
+            // Add shipping or PAYG payments to invoice
+            return addPayment(currentUser, currentImageSet);
         }).
         finally(function() {
             return cleanUp(currentImageSet, currentZipFile);
@@ -182,6 +186,7 @@ function saveImages(user, imageSet) {
     var userDir = getUserDirectory(user);
 
     _.forEach(imageSets, function(images, service) {
+
         if (images.length > 0 && !!user[service]) {
             //var filename = getZipFileName(user, imageSet) + '-';
 
@@ -189,14 +194,14 @@ function saveImages(user, imageSet) {
                 var imgDeferred = q.defer();
                 imagesDeferred.push(imgDeferred.promise);
 
-                var printSize = image.metadata.printSize || common.config.print.sizes.SQUARE;  // if no print size defined, default to instagram.
+                var printSize = image.metadata.printSize || common.config.print.sizes.SQUARE;  // if no print size defined, default to square.
                 var imageUrl;
 
                 if (printSize === common.config.print.sizes.SQUARE) {
                     imageUrl = image.src.raw;
                 } else {
                     // generate appropriate imgix url
-                    imageUrl = getImgixUrl(image.src.raw, image.metadata.images.standard_resolution.width, image.metadata.images.standard_resolution.height);
+                    imageUrl = getImgixUrl(service, image.src.raw, image.metadata.images.standard_resolution.width, image.metadata.images.standard_resolution.height);
 
                     if (imageUrl.indexOf('w=1200') > -1 && imageUrl.indexOf('h=1200') > -1) {
                         // TODO: Hacky solution to make sure images that were re-sized to square end up in 4x4 folder. Should fix in consumer.
@@ -542,20 +547,28 @@ Consumer.prototype.getUserDirectory = getUserDirectory;
 /**
  * Builds Imgix url for image cropping
  *
+ * @param {string} service - Facebook | Instagram. Used to dictate which imgix host source to use.
  * @param {string} imageUrl - url of the image hosted on https://scontent.cdninstagram.com
  * @param {string} width - width (in pixels) of the image
  * @param {string} height - height (in pixels) of the image
  * @returns {string} url
  */
-function getImgixUrl(imageUrl, width, height) {
+function getImgixUrl(service, imageUrl, width, height) {
     var imgPath;
     var options = {};
+    var hostDomain = config.imgix.hosts[service];
+
+    if (!hostDomain) {
+        //throw some error and return raw imageUrl as we won't be able to re-size
+        logger.error('getImgixUrl: Unable to resize due to unknown service (' +service+ ')');
+        return imageUrl;
+    }
 
     imgPath = url.parse(imageUrl).pathname;
-    
+
     // initialise Imgix client
     var imgix = new imgixClient({
-      host: config.imgix.host,
+      host: hostDomain,
       secureURLToken: config.imgix.secureToken
     });
 
@@ -618,6 +631,152 @@ function getImgixUrl(imageUrl, width, height) {
     return imgix.buildURL(imgPath, options);
 }
 
+
+function addPayment(user, imageset) {
+
+    var userStripeId = user.billing.stripeId;
+
+    logger.info('Creating Stripe Invoice for ' + userStripeId);
+
+    // variables for calculating stripe charges
+    // cover off if either service isn't connected for a user.
+    var photoCount = (!!imageset.images.instagram ? imageset.images.instagram.length : 0)
+                    + (!!imageset.images.facebook ? imageset.images.facebook.length : 0);
+
+    var photoShipping = 0;
+    var photoCharge = 0;
+
+    //check if plan is PAYG and if the user has less 5 photos. If so, we dont charge anything.
+    if (user.billing.option == "PAYG" && photoCount < 5) {
+        // First 5 photos free for PAYG.
+        photoShipping = 3;
+        photoCount = 0;
+        photoCharge = photoCount;
+
+    } else if (user.billing.option == "PAYG" && photoCount > 5 && photoCount <= 10) {
+        // If PAYG and >5 but <=10. Charge .80 per photos + shipping
+        photoShipping = 3;
+        photoCount = photoCount - 5;
+        photoCharge = photoCount * .8;
+
+    } else if (user.billing.option == "PAYG" && photoCount > 10 && photoCount <= 50) {
+        // If PAYG and >10 but <=50. Charge .50 per photos + shipping
+        photoShipping = 3;
+        photoCount = photoCount - 5;
+        photoCharge = photoCount * .5;
+
+    } else if (user.billing.option == "PAYG" && photoCount > 50) {
+        // If PAYG and >50. Charge .30 per photos + shipping
+        photoShipping = 6;
+        photoCount = photoCount - 5;
+        photoCharge = photoCount * .3;
+
+    } else if ((config.billing.plans.indexOf(user.billing.option)>-1) && photoCount >= 0 && photoCount <= 50) {
+        // if plan is a limited subscription plan and the user has <50, don't charge shipping.
+        photoCount = 0;
+        photoShipping = 0;
+        photoCharge = 0;
+
+    } else if ((config.billing.plans.indexOf(user.billing.option)>-1) && photoCount > 50 && photoCount < 100) {
+        // if plan is a limited subscription plan and the user has between 50 & 100 photos, charge $2 extra shipping.
+        photoCount = 0;
+        photoShipping = 2;
+        photoCharge = 0;
+
+    } else if ((config.billing.plans.indexOf(user.billing.option)>-1) && photoCount >= 100) {
+        // if plan is a limited subscription plan and the user has >=100, charge .30 per photo for each photo over 100 & charge shipping.
+        photoCount = photoCount - 100;
+        photoShipping = 4;
+        photoCharge = photoCount * .3;
+    } else {
+
+      photoCount = 0;
+      photoShipping = 0;
+      photoCharge = 0;
+
+    }
+
+    //convert stripe charges to cents
+    photoCharge = photoCharge * 100;
+    photoShipping = photoShipping * 100;
+
+
+    logger.info('Invoice details for ' + userStripeId + '\n' +
+                    'Photos: ' + photoCount + '\n' +
+                    'Shipping (cents): ' + photoShipping + '\n' +
+                    'Photo charge (cents): ' + photoCharge);
+
+    var shippingDeferred = q.defer();
+    var photosDeferred = q.defer();
+    
+    // charge Shipping
+    stripe.invoiceItems.create({
+      customer: userStripeId,
+      amount: photoShipping,
+      currency: "aud",
+      description: _.cloneDeep(config.billing.shippingDescription),
+    }, function(err, invoiceItem) {
+      // asynchronously called
+      if (err) {
+        // notify us and log error somwehere
+        logger.error('Error invoicing Shipping for user ' + userStripeId + ': ' +err);
+        shippingDeferred.reject(err);
+      }
+      else {
+        // log successful charge somewhere
+        logger.error('Shipping invoice item added for user ' + userStripeId);
+        shippingDeferred.resolve(invoiceItem);
+      }
+    });
+
+
+    // charge photos
+    stripe.invoiceItems.create({
+      customer: userStripeId,
+      amount: photoCharge,
+      currency: "aud",
+      description: _.cloneDeep(config.billing.chargeDescription).replace('{{photoCount}}',photoCount),
+    }, function(err, invoiceItem) {
+      // asynchronously called
+      if (err) {
+        // notify us and log error somwehere
+        logger.error('Error invoicing Photos for user ' + userStripeId + ': ' +err);
+        photosDeferred.reject(err);
+      }
+      else {
+        // log successful charge somewhere
+        logger.error('Photos invoice item added for user ' + userStripeId);
+        photosDeferred.resolve(invoiceItem);
+      }
+
+    });
+
+    return q.allSettled([shippingDeferred.promise,photosDeferred.promise]).spread( function(shipping, photos) {
+
+        var paymentInfo = {
+            status: '',
+            photoCount: photoCount,
+            shippingCharge: photoShipping,
+            photoCharge: photoCharge
+        };
+
+        if (shipping.state === 'fulfilled' && photos.state === 'fulfilled') {
+            // invoicing was successful
+            paymentInfo.status = 'success';
+            trackingManager.trackInvoiced(user,paymentInfo);
+            logger.info('Success completed invoicing Stripe for ' + userStripeId);
+        } else {
+            // error has occurred
+            paymentInfo.status = 'failure';
+            paymentInfo.error = {
+                shipping: shipping.reason,
+                photos: photos.reason
+            };
+            trackingManager.trackInvoiced(user,paymentInfo);
+            logger.info('Error invoicing Stripe for ' + userStripeId);
+        }
+    });
+}
 
 /**
  * Expose

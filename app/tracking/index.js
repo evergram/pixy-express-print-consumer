@@ -56,6 +56,41 @@ TrackingManager.prototype.trackPrintedImageSet = function(user, imageSet) {
 };
 
 /**
+ * Track Invoiced event. Represents when the Print Consumer adds Invoice Line Items to the user's current Stripe invoice.
+ * @param user
+ * @param paymentInfo: Basic details of the payment defined by PrintConsumer.addPayment()
+ */ 
+TrackingManager.prototype.trackInvoiced = function(user, paymentInfo) {
+
+    var event = 'Invoiced';
+    var errorSummary = '';
+
+    if (!!paymentInfo.error) {
+
+        if (!!paymentInfo.error.shipping) {
+            // if an error occured during invoicing shipping, append it to the event.
+            errorSummary += '[Error invoicing shipping charge:] \n';
+            errorSummary += paymentInfo.error.shipping + ' \n';
+        }
+        if (!!paymentInfo.error.photos) {
+            // if an error occured during invoicing photo count, append it to the event.
+            errorSummary += '[Error invoicing photos charge:] \n';
+            errorSummary += paymentInfo.error.photos;
+            
+        }
+    }
+
+    return trackingManager.trackEvent(user, event, {
+            status: paymentInfo.status,
+            photos: paymentInfo.photoCount,
+            shippingCharge: paymentInfo.shippingCharge,
+            photoCharge: paymentInfo.photoCharge,
+            error: errorSummary,
+            invoicingDate: moment().toDate()
+        }, moment().toDate());
+};
+
+/**
  * Expose
  * @type {TrackingManagerService}
  */

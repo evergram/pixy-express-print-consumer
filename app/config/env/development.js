@@ -5,6 +5,14 @@
  */
 
 module.exports = {
+    billing: {
+        stripe: {
+            secretAccessKey: 'sk_test_KN8z6UJtLbBWITp7FZUGiWKI'
+        },
+        plans: ["VALUE100", "PHOTOADDICT100", "UNLTD100SHIP"],  // list of subscription plans for billing
+        shippingDescription: "Shipping",
+        chargeDescription: "Photos [{{photoCount}}]"
+    },
     printer: {
         email: {
             enabled: true,
@@ -32,7 +40,10 @@ module.exports = {
     },
     track: false,
     imgix: {
-        host: 'pixy.imgix.net',
-        secureToken: process.env.IMGIX_SECURE_TOKEN
+        hosts: {
+            facebook: 'fb-pixy.imgix.net',
+            instagram: 'pixy.imgix.net'
+        },
+        secureToken: 'PY4VKJ6yX7TQEhuySaeZmb9Wagdgyjxj'
     }
 };

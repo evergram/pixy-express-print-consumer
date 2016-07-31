@@ -3,14 +3,21 @@
 /**
  * Expose
  */
-var crypto = require('crypto');
 
 module.exports = {
+    billing: {
+        stripe: {
+            secretAccessKey: 'sk_test_KN8z6UJtLbBWITp7FZUGiWKI'
+        },
+        plans: ["VALUE100", "PHOTOADDICT100", "UNLTD100SHIP"],  // list of subscription plans for billing
+        shippingDescription: "Shipping",
+        chargeDescription: "Photos [{{photoCount}}]"
+    },
     printer: {
         email: {
             enabled: true,
             from: 'hello@evergram.co',
-            to: 'hello@evergram.co'
+            to: 'josh@evergram.co'
         },
         ftp: {
             enabled: false,
@@ -21,20 +28,22 @@ module.exports = {
         }
     },
     s3: {
-        //random dir
-        folder: 'user-images/' + crypto.randomBytes(Math.ceil(5 / 2)).toString('hex').slice(0, 5)
+        folder: 'user-images'
     },
     sqs: {
         //seconds
         waitTime: 20,
-        visibilityTime: 120
+        visibilityTime: 300
     },
     plans: {
         simpleLimit: '[a-zA-Z]+\\-LIMIT\\-([0-9]+)'
     },
-    track: true,
+    track: false,
     imgix: {
-        host: 'pixy.imgix.net',
-        secureToken: process.env.IMGIX_SECURE_TOKEN
+        hosts: {
+            facebook: 'fb-pixy.imgix.net',
+            instagram: 'pixy.imgix.net'
+        },
+        secureToken: 'PY4VKJ6yX7TQEhuySaeZmb9Wagdgyjxj'
     }
 };
