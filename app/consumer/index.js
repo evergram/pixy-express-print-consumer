@@ -646,8 +646,13 @@ function addPayment(user, imageset) {
     var photoShipping = 0;
     var photoCharge = 0;
 
-    //check if plan is PAYG and if the user has less 5 photos. If so, we dont charge anything.
+    // give PAYG customers 5 free photos
     if (user.billing.option == "PAYG" && photoCount < 5) {
+        photoCount = photoCount - 5;
+    }
+
+    //check if plan is PAYG and if the user has less 5 photos. If so, we dont charge anything.
+    if (user.billing.option == "PAYG" && photoCount <= 5) {
         // First 5 photos free for PAYG.
         photoShipping = 3;
         photoCount = 0;
@@ -656,19 +661,16 @@ function addPayment(user, imageset) {
     } else if (user.billing.option == "PAYG" && photoCount > 5 && photoCount <= 10) {
         // If PAYG and >5 but <=10. Charge .80 per photos + shipping
         photoShipping = 3;
-        photoCount = photoCount - 5;
         photoCharge = photoCount * .8;
 
     } else if (user.billing.option == "PAYG" && photoCount > 10 && photoCount <= 50) {
         // If PAYG and >10 but <=50. Charge .50 per photos + shipping
         photoShipping = 3;
-        photoCount = photoCount - 5;
         photoCharge = photoCount * .5;
 
     } else if (user.billing.option == "PAYG" && photoCount > 50) {
         // If PAYG and >50. Charge .30 per photos + shipping
         photoShipping = 6;
-        photoCount = photoCount - 5;
         photoCharge = photoCount * .3;
 
     } else if ((config.billing.plans.indexOf(user.billing.option)>-1) && photoCount >= 0 && photoCount <= 50) {
@@ -717,14 +719,14 @@ function addPayment(user, imageset) {
       description: _.cloneDeep(config.billing.shippingDescription),
     }, function(err, invoiceItem) {
       // asynchronously called
-      if (err) {
+      if (!!err) {
         // notify us and log error somwehere
         logger.error('Error invoicing Shipping for user ' + userStripeId + ': ' +err);
         shippingDeferred.reject(err);
       }
       else {
         // log successful charge somewhere
-        logger.error('Shipping invoice item added for user ' + userStripeId);
+        logger.info('Shipping invoice item added for user ' + userStripeId);
         shippingDeferred.resolve(invoiceItem);
       }
     });
@@ -738,14 +740,14 @@ function addPayment(user, imageset) {
       description: _.cloneDeep(config.billing.chargeDescription).replace('{{photoCount}}',photoCount),
     }, function(err, invoiceItem) {
       // asynchronously called
-      if (err) {
+      if (!!err) {
         // notify us and log error somwehere
         logger.error('Error invoicing Photos for user ' + userStripeId + ': ' +err);
         photosDeferred.reject(err);
       }
       else {
         // log successful charge somewhere
-        logger.error('Photos invoice item added for user ' + userStripeId);
+        logger.info('Photos invoice item added for user ' + userStripeId);
         photosDeferred.resolve(invoiceItem);
       }
 
@@ -773,7 +775,7 @@ function addPayment(user, imageset) {
                 photos: photos.reason
             };
             trackingManager.trackInvoiced(user,paymentInfo);
-            logger.info('Error invoicing Stripe for ' + userStripeId);
+            logger.error('Error invoicing Stripe for ' + userStripeId);
         }
     });
 }
