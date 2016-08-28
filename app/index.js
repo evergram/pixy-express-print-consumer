@@ -18,7 +18,7 @@ process.on('SIGINT', function() {
 });
 
 //init db
-common.db.connect();
+//common.db.connect();  // NOT CONNECTING TO DB SO SHOULDN'T NEED THIS
 
 //create queue consumer
 var queue = new Queue({
@@ -49,7 +49,7 @@ queue.on(queue.EVENTS.MESSAGE_RECEIVED,
 
         consumer.consume(message).
             then(function() {
-                logger.info('Completed processing message for user ' + message.data.id);
+                logger.info('Completed processing message for order ' + message.data.id);
             }).
             fail(function(err) {
                 logger.error(err);

@@ -5,14 +5,6 @@
  */
 
 module.exports = {
-    billing: {
-        stripe: {
-            secretAccessKey: 'sk_test_KN8z6UJtLbBWITp7FZUGiWKI'
-        },
-        plans: ["VALUE100", "PHOTOADDICT100", "UNLTD100SHIP"],  // list of subscription plans for billing
-        shippingDescription: "Shipping",
-        chargeDescription: "Photos [{{photoCount}}]"
-    },
     printer: {
         email: {
             enabled: true,
@@ -28,21 +20,24 @@ module.exports = {
         }
     },
     s3: {
-        folder: 'user-images'
+        folder: ''
     },
     sqs: {
         //seconds
         waitTime: 20,
         visibilityTime: 300
     },
-    plans: {
-        simpleLimit: '[a-zA-Z]+\\-LIMIT\\-([0-9]+)'
+    tracking: {
+        track: false,
+        writeKey: 's1D3vxElH5eCPE5GvCgOYH4ISifPv8pk',
+        readKey: null,
+        options: {
+            flushAt: 1
+        }
     },
-    track: false,
     imgix: {
         hosts: {
-            facebook: 'fb-pixy.imgix.net',
-            instagram: 'pixy.imgix.net'
+            express: 'pixy-express.imgix.net',
         },
         secureToken: 'PY4VKJ6yX7TQEhuySaeZmb9Wagdgyjxj'
     }

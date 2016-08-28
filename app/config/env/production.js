@@ -5,14 +5,6 @@
  */
 
 module.exports = {
-    billing: {
-        stripe: {
-            secretAccessKey: process.env.STRIPE_KEY
-        },
-        plans: ["VALUE100", "PHOTOADDICT100", "UNLTD100SHIP"],  // list of subscription plans for billing
-        shippingDescription: "Shipping",
-        chargeDescription: "Photos [{{photoCount}}]"
-    },
     printer: {
         email: {
             enabled: process.env.PRINTER_EMAIL_ENABLED,
@@ -28,21 +20,24 @@ module.exports = {
         }
     },
     s3: {
-        folder: process.env.S3_FOLDER || 'user-images'
+        folder: process.env.S3_FOLDER || ''
     },
     sqs: {
         //seconds
         waitTime: process.env.SQS_WAIT_TIME || 20,
         visibilityTime: process.env.SQS_VISIBILITY_TIME || 600
     },
-    plans: {
-        simpleLimit: '[a-zA-Z]+\\-LIMIT\\-([0-9]+)'
+    tracking: {
+        track: process.env.TRACK_PRINTING || true,
+        writeKey: 's1D3vxElH5eCPE5GvCgOYH4ISifPv8pk',
+        readKey: null,
+        options: {
+            flushAt: 1
+        }
     },
-    track: process.env.TRACK_PRINTING || true,
     imgix: {
         hosts: {
-            facebook: process.env.IMGIX_HOST_FACEBOOK,
-            instagram: process.env.IMGIX_HOST_INSTAGRAM
+            express: process.env.IMGIX_HOST_EXPRESS
         },
         secureToken: process.env.IMGIX_SECURE_TOKEN
     }

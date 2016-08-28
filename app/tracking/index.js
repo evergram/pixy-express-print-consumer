@@ -5,89 +5,89 @@
  */
 
 var _ = require('lodash');
+var q = require('q');
 var moment = require('moment');
 var common = require('evergram-common');
+var Analytics = require('analytics-node');
+var config = require('../config').tracking;
 var logger = common.utils.logger;
 var trackingManager = common.tracking.manager;
+var analyticsInstance;
 
 /**
- * A tracking manager that handles all tracking events for the instagram consumer
+ * A manager that provides tracking of events.
  *
  * @constructor
  */
 function TrackingManager() {
 
+    if (!!config.writeKey) {
+        analyticsInstance = new Analytics(config.writeKey, config.options);
+    } else {
+        logger.error('Missing write key for Segment');
+    }
 }
 
-TrackingManager.prototype.trackPrintedImageSet = function(user, imageSet) {
+TrackingManager.prototype.trackPrintedOrder = function(user, order) {
     var event = 'Shipped photos';
 
-    var total = 0;
-    var owned = 0;
-    var other = 0;
-
-    _.forEach(imageSet.images, function(images) {
-        _.forEach(images, function(image) {
-            total++;
-            if (image.isOwner) {
-                owned++;
-            } else {
-                other++;
-            }
-        });
-    });
+    var total = order.photos.length;
 
     if (total > 0) {
-        logger.info('Tracking ' + event + ' for ' + user.getUsername());
+        logger.info('Tracking ' + event + ' for ' + user.displayName + ' (ID: ' + user._id + ')');
 
-        return trackingManager.trackEvent(user, event, {
-            imageSetId: imageSet._id.toString(),
+        return trackEvent(user, order, event, {
+            orderId: order._id.toString(),
             photoCount: total,
-            ownPhotoCount: owned,
-            friendsPhotoCount: other,
-            period: imageSet.period,
-            startDate: moment(imageSet.startDate).toDate(),
-            endDate: moment(imageSet.endDate).toDate(),
-            shippedOn: moment(imageSet.endDate).toDate()
-        }, moment(imageSet.endDate).toDate());
+            shippedOn: moment().toDate()
+        }, moment().toDate());
     } else {
-        logger.info(user.getUsername() + ' has no images to track for the period ' + imageSet.period);
+        logger.info(user.displayName + ' has no images to track.');
     }
 };
 
-/**
- * Track Invoiced event. Represents when the Print Consumer adds Invoice Line Items to the user's current Stripe invoice.
- * @param user
- * @param paymentInfo: Basic details of the payment defined by PrintConsumer.addPayment()
- */ 
-TrackingManager.prototype.trackInvoiced = function(user, paymentInfo) {
+function trackEvent(user, order, event, properties, timestamp) {
+    
+    // append traits to properties (needed to expose traits to some platforms, e.g. keen.io and autopilot)
+    properties.stamplayId = user._id;
+    properties.messengerId = user.messengerId;
+    properties.plan = 'express';
+    properties.city = order.address.suburb;
+    properties.state = order.address.state;
+    properties.postcode = order.address.postcode;
+    properties.country = order.address.country;
 
-    var event = 'Invoiced';
-    var errorSummary = '';
+    var data = {
+        userId: _.isString(user._id) ? user._id : user._id.toString(),
+        event: event,
+        properties: properties
+    };
 
-    if (!!paymentInfo.error) {
-
-        if (!!paymentInfo.error.shipping) {
-            // if an error occured during invoicing shipping, append it to the event.
-            errorSummary += '[Error invoicing shipping charge:] \n';
-            errorSummary += paymentInfo.error.shipping + ' \n';
-        }
-        if (!!paymentInfo.error.photos) {
-            // if an error occured during invoicing photo count, append it to the event.
-            errorSummary += '[Error invoicing photos charge:] \n';
-            errorSummary += paymentInfo.error.photos;
-            
-        }
+    if (!!timestamp) {
+        data.timestamp = timestamp;
     }
 
-    return trackingManager.trackEvent(user, event, {
-            status: paymentInfo.status,
-            photos: paymentInfo.photoCount,
-            shippingCharge: paymentInfo.shippingCharge,
-            photoCharge: paymentInfo.photoCharge,
-            error: errorSummary,
-            invoicingDate: moment().toDate()
-        }, moment().toDate());
+    //stamp user data
+    data.context = {
+        traits: {
+            stamplayId: user._id,
+            messengerId: user.messengerId,
+            city: order.address.suburb,
+            state: order.address.state,
+            postcode: order.address.postcode,
+            country: order.address.country
+        }
+    };
+
+    //return q.defer().promise
+    try {
+    return q.ninvoke(analyticsInstance, 'track', data).
+        then(function() {
+            logger.info('Tracked "' + event + '" for ' + user.displayName + ' (ID: ' + user._id + ')');
+        });
+    } catch(err) {
+        logger.error(err);
+    }
 };
 
 /**
