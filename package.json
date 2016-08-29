@@ -1,6 +1,6 @@
 {
-  "name": "evergram-consumer-manager",
-  "description": "Evergram's Instagram Consumer",
+  "name": "pixy-express-print-consumer",
+  "description": "Pixy Express Print Consumer",
   "keywords": [
     "express",
     "mongoose",
@@ -8,10 +8,10 @@
   ],
   "version": "0.0.1",
   "private": true,
-  "author": "Josh Stuart <joshstuartx@gmail.com>",
+  "author": "Richard O'Brien <richard@printwithpixy.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/evergram/evergram-consumer-manager.git"
+    "url": "https://github.com/evergram/pixy-express-print-consumer.git"
   },
   "scripts": {
     "lint": "./node_modules/.bin/jshint ./app",
