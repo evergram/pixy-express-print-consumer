@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "evergram-common": "git+ssh://git@github.com:evergram/evergram-common.git#master",
+    "analytics-node": "^1.2.2",
     "http": "0.0.0",
     "imgix-core-js": "^1.0.3",
     "jsftp": "^1.5.2",
@@ -31,7 +32,12 @@
     "q": "^1.4.1",
     "slipstream": "^0.1.0",
     "slipstream-sqs": "^1.0.0",
-    "stripe": "^4.9.0"
+    "stripe": "^4.9.0",
+    "request": "^2.74.0",
+    "gm": "^1.23.0",
+    "mkdirp": "^0.5.1",
+    "tmp": "0.0.25",
+    "aws-sdk": "^2.1.16"
   },
   "devDependencies": {
     "istanbul": "^0.3.13",
