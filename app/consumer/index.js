@@ -662,8 +662,8 @@ function getImgixUrl(service, product_type, imageUrl, width, height) {
             options = {
                 w: 1200,
                 h: 1200,
-                fit: "fill",
-                bg: "FFFFFF"
+                fit: "crop",
+                crop: "faces"
             }
         }
     } else if (height > width) {
@@ -682,8 +682,8 @@ function getImgixUrl(service, product_type, imageUrl, width, height) {
             options = {
                 w: 1200,
                 h: 1200,
-                fit: "fill",
-                bg: "FFFFFF"
+                fit: "crop",
+                crop: "faces"
             }
         }
     } else {
@@ -692,8 +692,8 @@ function getImgixUrl(service, product_type, imageUrl, width, height) {
         options = {
             w: 1200,
             h: 1200,
-            fit: "fill",
-            bg: "FFFFFF"
+            fit: "crop",
+            crop: "faces"
         }
     }
 
